@@ -1,0 +1,9 @@
+version: '3'
+services:
+  ompl_gpu:
+    image: tomjur/tf_ompl
+    volumes:
+      - ~/SGT-PG/data:/data
+      - ~/SGT-PG:/code
+
+
