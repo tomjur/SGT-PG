@@ -38,17 +38,25 @@ def _get_tests(config):
 
 
 def _train_at_level(level, network, sess, dataset, global_step, summaries_collector):
+    valid_data = [
+        (s, g, m, c) for (s, g, m, s_valid, g_valid, c) in dataset if s_valid and g_valid
+    ]
+    if len(valid_data) == 0:
+        print_and_log('############### no valid data')
+        return global_step
+
     summaries_frequency = config['general']['write_summaries_every']
     batch_size = config['model']['batch_size']
 
-    starts, ends, middles, costs = zip(*random.sample(dataset, min(batch_size, len(dataset))))
+    starts, ends, middles, costs = zip(*random.sample(valid_data, min(batch_size, len(valid_data))))
+    # starts, ends, middles, _, _, costs = zip(*random.sample(dataset, min(batch_size, len(dataset))))
     summaries, prediction_loss, initial_gradients_norm, clipped_gradients_norm, _ = network.train_policy(
         starts, ends, middles, costs, sess)
     if global_step % summaries_frequency == summaries_frequency - 1:
         summaries_collector.write_train_optimization_summaries(summaries, global_step)
 
     global_step += 1
-    return global_step, prediction_loss
+    return global_step
 
 
 def _collect_data(count, level, episode_runner, trajectories_dir=None):
@@ -139,7 +147,7 @@ def run_for_config(config):
         save_frequency = config['general']['save_every_cycles']
         episodes_per_cycle = config['general']['episodes_per_cycle']
 
-        current_level = 1
+        current_level = 2
         global_step = 0
         best_metric_model, best_metric_global_step = None, None
         best_success_rate, best_success_global_step = None, None
@@ -164,16 +172,15 @@ def run_for_config(config):
                 print_and_log('old success rate was {} at step {}'.format(best_success_rate, best_success_global_step))
                 best_success_rate, best_success_global_step = successes, global_step
 
-            global_step, prediction_loss = _train_at_level(
+            global_step = _train_at_level(
                 current_level, network, sess, dataset, global_step, summaries_collector)
             print_and_log('done training cycle {} global step {}'.format(cycle, global_step))
             # save every now and then
             if cycle % save_frequency == save_frequency - 1:
                 latest_saver.save(sess, global_step=global_step)
 
-            print_and_log('current loss {}'.format(prediction_loss))
             # decide how to act next
-            test_metric = accumulated_cost
+            test_metric = -successes
             print_and_log('previous best model {} at global step {}'.format(
                 best_metric_model, best_metric_global_step))
             print_and_log('current learn rates {}'.format(sess.run(network.learn_rate_variable)))

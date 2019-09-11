@@ -13,14 +13,15 @@ general:
   episodes_per_cycle: 1000
 #  episodes_per_cycle: 3
   save_every_cycles: 1000
-  cycles_per_trajectory_print: 10
+  cycles_per_trajectory_print: 50
 #  gain: 'full-traj'
   gain: 'future-only'
 
 cost:
 #  collision_cost: 10.0
 #  collision_cost: 100.0
-  collision_cost: 200.0
+#  collision_cost: 200.0
+  collision_cost: 20.0
   free_cost: 1.0
 
 openrave:
@@ -30,7 +31,7 @@ model:
   levels: 2
 #  levels: 5
   batch_size: 20000
-  decrease_learn_rate_if_static_success: 50
+  decrease_learn_rate_if_static_success: 75
 #  decrease_learn_rate_if_static_success: 3
 #  decrease_learn_rate_if_static_success: 2
 #  stop_training_after_learn_rate_decrease: 10
@@ -41,8 +42,8 @@ model:
 
 policy:
 #  learning_rate: 0.001
-  learning_rate: 0.00005
-#  learning_rate: 0.01
+#  learning_rate: 0.000005
+  learning_rate: 0.0001
 #  learning_rate_decrease_rate: 1.
   learning_rate_decrease_rate: 0.8
   learning_rate_minimum: 0.0000001

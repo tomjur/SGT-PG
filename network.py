@@ -21,7 +21,7 @@ class Network:
         # compute the loss
         log_likelihood = self.prediction_distribution.log_prob(self.middle_inputs)
         mean_log_likelihood = tf.reduce_mean(log_likelihood)
-        log_likelihood = tf.maximum(log_likelihood, np.log(0.01))
+        log_likelihood = tf.maximum(log_likelihood, np.log(0.001))
         self.prediction_loss = tf.reduce_mean(tf.expand_dims(log_likelihood, axis=-1) * self.label_inputs)
 
         # optimize
@@ -95,6 +95,7 @@ class Network:
             ) for i in range(number_of_gaussians)
         ]
 
+
         # normal_dist_parameters = tf.layers.dense(
         #     current, number_of_gaussians * self.state_size, activation=None, name='policy_normal_dist_parameters',
         #     reuse=reuse_flag
@@ -102,7 +103,8 @@ class Network:
         # split_normal_dist_parameters = tf.split(normal_dist_parameters, number_of_gaussians, axis=1)
         # normal_distributions = [
         #     # tfp.distributions.MultivariateNormalDiag(loc=split_normal_dist_parameters[i],scale_identity_multiplier=0.01)
-        #     tfp.distributions.MultivariateNormalDiag(loc=shift + split_normal_dist_parameters[i], scale_identity_multiplier=0.01)
+        #     tfp.distributions.MultivariateNormalDiag(loc=shift + split_normal_dist_parameters[i],
+        #                                              scale_identity_multiplier=0.01)
         #     for i in range(number_of_gaussians)
         # ]
 
