@@ -6,17 +6,19 @@ class EpisodeRunner:
         self.config = config
         self.game = game
         self.policy_function = policy_function
+        self.collision_cost = self.config['cost']['collision_cost']
+        self.free_cost = self.config['cost']['free_cost']
+        self.huber_loss_delta = self.config['cost']['huber_loss_delta']
 
-    def play_random_episodes(self, number_of_episodes, top_level):
+    def play_random_episodes(self, number_of_episodes, top_level, is_train):
         start_goal_pairs = [
             (self.game.get_free_random_state(), self.game.get_free_random_state()) for _ in range(number_of_episodes)
         ]
-        return self.play_episodes(start_goal_pairs, top_level)
+        return self.play_episodes(start_goal_pairs, top_level, is_train)
 
-    def play_episodes(self, start_goal_pairs, top_level):
-        # start_goal_pairs = start_goal_pairs * 10
+    def play_episodes(self, start_goal_pairs, top_level, is_train):
         starts, goals = zip(*start_goal_pairs)
-        middle_states = self.policy_function(starts, goals, top_level)
+        middle_states = self.policy_function(starts, goals, top_level, is_train)
         endpoints = np.array([np.array(starts)] + middle_states + [np.array(goals)])
         endpoints = np.swapaxes(endpoints, 0, 1)
         endpoints = [np.squeeze(e, axis=0) for e in np.vsplit(endpoints, len(endpoints))]
@@ -51,57 +53,24 @@ class EpisodeRunner:
                 splits[(start_index, end_index)] = (start, end, middle, is_start_valid, is_goal_valid, cost)
         return endpoints, splits, base_costs, is_valid_episode
 
-    # def _get_cost(self, start, goal):
-    #     distance = 1.0 + np.linalg.norm(start - goal)
-    #     max_element = np.max(np.abs(np.concatenate((start, goal), axis=0)))
-    #     if max_element > 1.:
-    #         cost = self.config['cost']['collision_cost'] * (1.+distance)
-    #         cost = cost * cost
-    #         is_valid = False
-    #     else:
-    #         is_valid = self.game.check_terminal_segment((start, goal))
-    #         if is_valid:
-    #             distance_coefficient = self.config['cost']['free_cost']
-    #             cost = distance_coefficient * distance
-    #         else:
-    #             distance_coefficient = self.config['cost']['collision_cost']
-    #             cost = distance_coefficient * (1. + distance)
-    #     return cost, is_valid
-
     def _get_cost(self, start, goal):
-        distance = np.linalg.norm(start - goal) + 1.
+        distance = np.linalg.norm(start - goal)
+        # distance = self._get_huber_loss(distance)
         is_start_valid = self.game.is_free_state(start)
         is_goal_valid = self.game.is_free_state(goal)
-        is_segment_valid = self.game.check_terminal_segment((start, goal))
+        segment_collision = self.game.check_terminal_segment((start, goal))
+        is_segment_valid = segment_collision == 0.0
 
-        max_feature = np.max(np.abs(np.concatenate((start, goal))))
-        if max_feature > 1.:
-            distance_coefficient = self.config['cost']['collision_cost']
-            cost = distance_coefficient * distance
-            cost = cost * cost * cost
-        elif not is_start_valid or not is_goal_valid:
-            distance_coefficient = self.config['cost']['collision_cost']
-            cost = distance_coefficient * distance
-            cost = cost * cost
-        elif not is_segment_valid:
-            distance_coefficient = self.config['cost']['collision_cost']
-            cost = distance_coefficient * distance
-        else:
-            distance_coefficient = self.config['cost']['free_cost']
-            cost = distance_coefficient * distance
+        segment_free = distance - segment_collision
+        assert segment_free >= 0.
 
-        # if is_start_valid and is_goal_valid:
-        #     if is_segment_valid:
-        #         distance_coefficient = self.config['cost']['free_cost']
-        #         cost = distance_coefficient * distance
-        #     else:
-        #         distance_coefficient = self.config['cost']['collision_cost']
-        #         cost = distance_coefficient * distance
-        # else:
-        #     distance_coefficient = self.config['cost']['collision_cost']
-        #     distance_coefficient = distance_coefficient * distance_coefficient
-        #     cost = distance_coefficient * distance
-        #     # cost = distance_coefficient * (1. + distance)
-        #     cost = cost*cost
+        free_cost = self._get_huber_loss(segment_free) * self.free_cost
+        collision_cost = self._get_huber_loss(segment_collision) * self.collision_cost
+        cost = free_cost + collision_cost
+
         return cost, is_start_valid, is_goal_valid, is_segment_valid
 
+    def _get_huber_loss(self, distance):
+        if distance < self.huber_loss_delta:
+            return 0.5 * distance * distance
+        return self.huber_loss_delta * (distance - 0.5 * self.huber_loss_delta)

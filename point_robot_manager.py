@@ -2,6 +2,7 @@ import numpy as np
 from shapely.geometry import Point, Polygon, LineString
 from shapely import speedups
 from descartes.patch import PolygonPatch
+from shapely.ops import cascaded_union
 
 
 class PointRobotManager:
@@ -44,14 +45,15 @@ class PointRobotManager:
         return True
 
     def is_linear_path_valid(self, state1, state2):
-        # verify that both endpoints are valid
-        if not self.is_free(state1) or not self.is_free(state2):
-            return False
-        # check the line segment in between
         path = LineString([state1, state2])
-        if any([self._line_touch(path, polygon) for polygon in self.obstacles]):
-            return False
-        return True
+        intersections = [path.intersection(polygon) for polygon in self.obstacles if path.intersects(polygon)]
+        if len(intersections) == 0:
+            return 0.0
+        else:
+            line_unions = cascaded_union(intersections)
+            intersection_length = line_unions.length
+            assert intersection_length <= path.length
+            return intersection_length
 
     @staticmethod
     def _line_touch(line, obstacle):

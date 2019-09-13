@@ -59,9 +59,9 @@ def _train_at_level(level, network, sess, dataset, global_step, summaries_collec
     return global_step
 
 
-def _collect_data(count, level, episode_runner, trajectories_dir=None):
-    print_and_log('collecting {} episodes of level {}'.format(count, level))
-    episode_results = episode_runner.play_random_episodes(count, level)
+def _collect_data(count, level, episode_runner, trajectories_dir=None, is_train=True):
+    print_and_log('collecting {} {} episodes of level {}'.format(count, 'train' if is_train else 'test', level))
+    episode_results = episode_runner.play_random_episodes(count, level, is_train)
     accumulated_cost, successes = [], []
     dataset = []
 
@@ -91,9 +91,9 @@ def _collect_data(count, level, episode_runner, trajectories_dir=None):
 
         # extend the dataset
         current_dataset = splits.values()
-        if config['general']['gain'] == 'full-traj':
+        if config['model']['gain'] == 'full-traj':
             current_dataset = [(s, g, m, total_cost) for (s, g, m, c) in current_dataset]
-        elif config['general']['gain'] == 'future-only':
+        elif config['model']['gain'] == 'future-only':
             pass
         else:
             assert False
@@ -139,7 +139,8 @@ def run_for_config(config):
         sess.run(tf.global_variables_initializer())
 
         game = _get_game(config)
-        policy_function = lambda starts, goals, level: network.predict_policy(starts, goals, level, sess)
+        policy_function = lambda starts, goals, level, is_train: network.predict_policy(
+            starts, goals, level, sess, is_train)
         episode_runner = EpisodeRunner(config, game, policy_function)
 
         decrease_learn_rate_if_static_success = config['model']['decrease_learn_rate_if_static_success']
@@ -147,7 +148,7 @@ def run_for_config(config):
         save_frequency = config['general']['save_every_cycles']
         episodes_per_cycle = config['general']['episodes_per_cycle']
 
-        current_level = 2
+        current_level = config['model']['starting_level']
         global_step = 0
         best_metric_model, best_metric_global_step = None, None
         best_success_rate, best_success_global_step = None, None
@@ -164,7 +165,7 @@ def run_for_config(config):
             else:
                 trajectories_dir = None
             successes, accumulated_cost, dataset = _collect_data(
-                episodes_per_cycle, current_level, episode_runner, trajectories_dir)
+                episodes_per_cycle, current_level, episode_runner, trajectories_dir, True)
             if global_step % config['general']['write_summaries_every']:
                 summaries_collector.write_train_success_summaries(sess, global_step, successes)
             if best_success_rate is None or successes > best_success_rate:
@@ -192,6 +193,10 @@ def run_for_config(config):
                 no_test_improvement = 0
                 consecutive_learn_rate_decrease = 0
                 best_saver.save(sess, global_step)
+                test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name, str(global_step))
+                test_successes, _, _ = _collect_data(
+                    episodes_per_cycle, current_level, episode_runner, test_trajectories_dir, False)
+                summaries_collector.write_test_success_summaries(sess, global_step, test_successes)
             else:
                 print_and_log('new model is not the best')
                 no_test_improvement += 1
