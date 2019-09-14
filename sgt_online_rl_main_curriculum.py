@@ -146,7 +146,8 @@ def run_for_config(config):
         decrease_learn_rate_if_static_success = config['model']['decrease_learn_rate_if_static_success']
         stop_training_after_learn_rate_decrease = config['model']['stop_training_after_learn_rate_decrease']
         save_frequency = config['general']['save_every_cycles']
-        episodes_per_cycle = config['general']['episodes_per_cycle']
+        train_episodes_per_cycle = config['general']['train_episodes_per_cycle']
+        test_episodes = config['general']['test_episodes']
         test_frequency = config['general']['test_frequency']
 
         current_level = config['model']['starting_level']
@@ -165,7 +166,7 @@ def run_for_config(config):
             else:
                 trajectories_dir = None
             successes, accumulated_cost, dataset = _collect_data(
-                episodes_per_cycle, current_level, episode_runner, trajectories_dir, True)
+                train_episodes_per_cycle, current_level, episode_runner, trajectories_dir, True)
             if global_step % config['general']['write_summaries_every']:
                 summaries_collector.write_train_success_summaries(sess, global_step, successes)
 
@@ -180,7 +181,7 @@ def run_for_config(config):
                 # do test
                 test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name, str(global_step))
                 test_successes, _, _ = _collect_data(
-                    episodes_per_cycle, current_level, episode_runner, test_trajectories_dir, False)
+                    test_episodes, current_level, episode_runner, test_trajectories_dir, False)
                 summaries_collector.write_test_success_summaries(sess, global_step, test_successes)
                 # decide how to act next
                 print_and_log('old success rate was {} at step {}'.format(best_success_rate, best_success_global_step))
