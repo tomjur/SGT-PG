@@ -18,13 +18,16 @@ general:
 #  episodes_per_cycle: 3
   save_every_cycles: 1000
   cycles_per_trajectory_print: 50
+  test_frequency: 3
 
 cost:
 #  collision_cost: 10.0
-#  collision_cost: 100.0
+  collision_cost: 1000.0
 #  collision_cost: 200.0
-  collision_cost: 20.0
+#  collision_cost: 20.0
   free_cost: 1.0
+#  type: 'linear'
+  type: 'huber'
   huber_loss_delta: 1.0
 
 model:
@@ -32,7 +35,7 @@ model:
 #  levels: 5
   starting_level: 2
   batch_size: 20000
-  decrease_learn_rate_if_static_success: 75
+  decrease_learn_rate_if_static_success: 25
 #  decrease_learn_rate_if_static_success: 3
 #  decrease_learn_rate_if_static_success: 2
 #  stop_training_after_learn_rate_decrease: 10
@@ -43,27 +46,29 @@ model:
   gain: 'future-only'
 
 policy:
-#  learning_rate: 0.001
-#  learning_rate: 0.000005
+#  learning_rate: 0.00001
   learning_rate: 0.0001
-#  learning_rate: 0.001
 #  learning_rate_decrease_rate: 1.
   learning_rate_decrease_rate: 0.8
 #  learning_rate_decrease_rate: 0.5
   learning_rate_minimum: 0.0000001
 #  gradient_limit: 0.0
 #  gradient_limit: 1000.0 # for cost 100
-#  gradient_limit: 10000.0 # for cost 200
-  gradient_limit: 800.0
+  gradient_limit: 10000.0 # for cost 200
+#  gradient_limit: 800.0
 #  layers: [400, 400, 400, 400]
   layers: [100, 100, 100, 100, 100]
 #  layers: [50, 50, 50, 50]
   activation: 'elu'
 #  activation: 'relu'
 #  activation: 'tanh'
-  base_std: 0.0
-#  base_std: 0.05
+#  base_std: 0.0
+  base_std: 0.05
+#  base_std: 0.5
   log_prob_ignore_pdf: 0.001
+#  log_prob_ignore_pdf: 0.00001
+#  learn_std: False
+  learn_std: True
 
 # increase layers number and size of each
 # change the log lower bound

@@ -50,7 +50,7 @@ def _train_at_level(level, network, sess, dataset, global_step, summaries_collec
 
     starts, ends, middles, costs = zip(*random.sample(valid_data, min(batch_size, len(valid_data))))
     # starts, ends, middles, _, _, costs = zip(*random.sample(dataset, min(batch_size, len(dataset))))
-    summaries, prediction_loss, initial_gradients_norm, clipped_gradients_norm, _ = network.train_policy(
+    summaries, prediction_loss, _ = network.train_policy(
         starts, ends, middles, costs, sess)
     if global_step % summaries_frequency == summaries_frequency - 1:
         summaries_collector.write_train_optimization_summaries(summaries, global_step)
@@ -147,10 +147,10 @@ def run_for_config(config):
         stop_training_after_learn_rate_decrease = config['model']['stop_training_after_learn_rate_decrease']
         save_frequency = config['general']['save_every_cycles']
         episodes_per_cycle = config['general']['episodes_per_cycle']
+        test_frequency = config['general']['test_frequency']
 
         current_level = config['model']['starting_level']
         global_step = 0
-        best_metric_model, best_metric_global_step = None, None
         best_success_rate, best_success_global_step = None, None
         no_test_improvement, consecutive_learn_rate_decrease = 0, 0
 
@@ -168,10 +168,6 @@ def run_for_config(config):
                 episodes_per_cycle, current_level, episode_runner, trajectories_dir, True)
             if global_step % config['general']['write_summaries_every']:
                 summaries_collector.write_train_success_summaries(sess, global_step, successes)
-            if best_success_rate is None or successes > best_success_rate:
-                print_and_log('new best success rate {} at step {}'.format(successes, global_step))
-                print_and_log('old success rate was {} at step {}'.format(best_success_rate, best_success_global_step))
-                best_success_rate, best_success_global_step = successes, global_step
 
             global_step = _train_at_level(
                 current_level, network, sess, dataset, global_step, summaries_collector)
@@ -180,42 +176,42 @@ def run_for_config(config):
             if cycle % save_frequency == save_frequency - 1:
                 latest_saver.save(sess, global_step=global_step)
 
-            # decide how to act next
-            test_metric = -successes
-            print_and_log('previous best model {} at global step {}'.format(
-                best_metric_model, best_metric_global_step))
-            print_and_log('current learn rates {}'.format(sess.run(network.learn_rate_variable)))
-            if best_metric_model is None or test_metric < best_metric_model:
-                best_metric_model = test_metric
-                best_metric_global_step = global_step
-                print_and_log('new best model found, global step {}'.format(
-                    best_metric_global_step))
-                no_test_improvement = 0
-                consecutive_learn_rate_decrease = 0
-                best_saver.save(sess, global_step)
+            if cycle % test_frequency == 0 or best_success_rate is None or best_success_rate < successes:
+                # do test
                 test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name, str(global_step))
                 test_successes, _, _ = _collect_data(
                     episodes_per_cycle, current_level, episode_runner, test_trajectories_dir, False)
                 summaries_collector.write_test_success_summaries(sess, global_step, test_successes)
-            else:
-                print_and_log('new model is not the best')
-                no_test_improvement += 1
-                print_and_log('no improvement count {} of {}'.format(
-                    no_test_improvement, decrease_learn_rate_if_static_success))
-                if no_test_improvement == decrease_learn_rate_if_static_success:
-                    sess.run(network.decrease_learn_rate_op)
+                # decide how to act next
+                print_and_log('old success rate was {} at step {}'.format(best_success_rate, best_success_global_step))
+                if best_success_rate is None or test_successes > best_success_rate:
+                    print_and_log('new best success rate {} at step {}'.format(test_successes, global_step))
+                    best_success_rate, best_success_global_step = test_successes, global_step
+                    print_and_log('current learn rates {}'.format(sess.run(network.learn_rate_variable)))
                     no_test_improvement = 0
-                    consecutive_learn_rate_decrease += 1
-                    print_and_log('decreasing learn rates {} of {}'.format(
-                        consecutive_learn_rate_decrease, stop_training_after_learn_rate_decrease)
-                    )
-                    print_and_log('new learn rates {}'.format(sess.run(network.learn_rate_variable)))
-                    if consecutive_learn_rate_decrease == stop_training_after_learn_rate_decrease:
-                        best_saver.restore(sess)
-                        current_level += 1
-                        best_metric_model, best_metric_global_step = None, None
-                        best_success_rate, best_success_global_step = None, None
-                        no_test_improvement, consecutive_learn_rate_decrease = 0, 0
+                    consecutive_learn_rate_decrease = 0
+                    best_saver.save(sess, global_step)
+
+                else:
+                    print_and_log('new model is not the best')
+                    no_test_improvement += 1
+                    print_and_log('no improvement count {} of {}'.format(
+                        no_test_improvement, decrease_learn_rate_if_static_success))
+                    if no_test_improvement == decrease_learn_rate_if_static_success:
+                        sess.run(network.decrease_learn_rate_op)
+                        no_test_improvement = 0
+                        consecutive_learn_rate_decrease += 1
+                        print_and_log('decreasing learn rates {} of {}'.format(
+                            consecutive_learn_rate_decrease, stop_training_after_learn_rate_decrease)
+                        )
+                        print_and_log('new learn rates {}'.format(sess.run(network.learn_rate_variable)))
+                        if consecutive_learn_rate_decrease == stop_training_after_learn_rate_decrease:
+                            best_saver.restore(sess)
+                            current_level += 1
+                            best_success_rate, best_success_global_step = None, None
+                            no_test_improvement, consecutive_learn_rate_decrease = 0, 0
+
+            # mark in log the end of cycle
             print_and_log(os.linesep)
 
 

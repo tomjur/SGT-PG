@@ -38,14 +38,22 @@ class Network:
                 self.config['policy']['gradient_limit']
             )
 
-        # summaries for the critic optimization
-        self.optimization_summaries = tf.summary.merge([
+        merge_summaries = [
             tf.summary.scalar('predicted_cost', -self.prediction_loss),
-            tf.summary.scalar('initial_gradients_norm', self.initial_gradients_norm),
-            tf.summary.scalar('clipped_gradients_norm', self.clipped_gradients_norm),
             tf.summary.scalar('learn_rate', self.learn_rate_variable),
             tf.summary.scalar('log-likelihood', mean_log_likelihood)
-        ])
+        ]
+        if self.initial_gradients_norm is not None:
+            merge_summaries.append(
+                tf.summary.scalar('initial_gradients_norm', self.initial_gradients_norm)
+            )
+        if self.clipped_gradients_norm is not None:
+            merge_summaries.append(
+                tf.summary.scalar('clipped_gradients_norm', self.clipped_gradients_norm)
+            )
+
+        # summaries for the critic optimization
+        self.optimization_summaries = tf.summary.merge(merge_summaries)
         # this is the prediction over the entire subtree (element at index l contains the entire trajectory prediction
         # for a tree with l levels
         self.policy_tree_prediction = [
@@ -75,10 +83,12 @@ class Network:
     def optimize_by_loss(loss, parameters_to_optimize, learning_rate, gradient_limit):
         optimizer = tf.train.AdamOptimizer(learning_rate)
         gradients, variables = zip(*optimizer.compute_gradients(loss, parameters_to_optimize))
-        initial_gradients_norm = tf.global_norm(gradients)
         if gradient_limit > 0.0:
+            initial_gradients_norm = tf.global_norm(gradients)
             gradients, _ = tf.clip_by_global_norm(gradients, gradient_limit, use_norm=initial_gradients_norm)
-        clipped_gradients_norm = tf.global_norm(gradients)
+            clipped_gradients_norm = tf.global_norm(gradients)
+        else:
+            initial_gradients_norm, clipped_gradients_norm = None, None
         optimize_op = optimizer.apply_gradients(zip(gradients, variables))
         return initial_gradients_norm, clipped_gradients_norm, optimize_op
 
@@ -92,8 +102,7 @@ class Network:
         feed_dictionary = self._generate_feed_dictionary(
             start_inputs, goal_inputs, middle_inputs=middle_inputs, labels=labels, symmetric=symmetric)
         ops = [
-            self.optimization_summaries, self.prediction_loss, self.initial_gradients_norm, self.clipped_gradients_norm,
-            self.optimize
+            self.optimization_summaries, self.prediction_loss, self.optimize
         ]
         return sess.run(ops, feed_dictionary)
 
