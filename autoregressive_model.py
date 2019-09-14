@@ -14,6 +14,7 @@ class AutoregressiveModel:
         activation = AutoregressiveModel.get_activation(self.config['policy']['activation'])
         network_layers = self.config['policy']['layers']
         base_std = self.config['policy']['base_std']
+        learn_std = self.config['policy']['learn_std']
 
         if middle_inputs is None:
             split_middle_inputs = None
@@ -32,22 +33,28 @@ class AutoregressiveModel:
                     reuse=self._reuse
                 )
 
-            # normal_dist_parameters = tf.layers.dense(
-            #     current,  1, activation=None, name='policy_autoregressive_{}_normal_dist_parameters'.format(s),
-            #     reuse=self._reuse
-            # )
-            # # bias = tf.squeeze(shift[s] + normal_dist_parameters, axis=1)
-            # bias = tf.squeeze(tf.tanh(normal_dist_parameters), axis=1)
-            # current_prediction_distribution = tfp.distributions.TruncatedNormal(loc=bias, scale=base_std, low=-1., high=1.)
+            if learn_std:
+                normal_dist_parameters = tf.layers.dense(
+                    current, 2, activation=None, name='policy_autoregressive_{}_normal_dist_parameters'.format(s),
+                    reuse=self._reuse
+                )
+                split_normal_dist_parameters = tf.split(normal_dist_parameters, 2, axis=1)
+                bias = tf.squeeze(tf.tanh(split_normal_dist_parameters[0]), axis=1)
+                # bias = tf.squeeze(shift[s] + split_normal_dist_parameters[0], axis=1)
+                # bias = tf.maximum(tf.minimum(bias, 1.), -1.)
+                std = split_normal_dist_parameters[1]
+                if base_std > 0.0:
+                    std = tf.maximum(std, np.log(base_std))
+                std = tf.squeeze(tf.exp(std), axis=1)
+            else:
+                normal_dist_parameters = tf.layers.dense(
+                    current,  1, activation=None, name='policy_autoregressive_{}_normal_dist_parameters'.format(s),
+                    reuse=self._reuse
+                )
+                # bias = tf.squeeze(shift[s] + normal_dist_parameters, axis=1)
+                bias = tf.squeeze(tf.tanh(normal_dist_parameters), axis=1)
+                std = base_std
 
-            normal_dist_parameters = tf.layers.dense(
-                current, 2, activation=None, name='policy_autoregressive_{}_normal_dist_parameters'.format(s),
-                reuse=self._reuse
-            )
-            split_normal_dist_parameters = tf.split(normal_dist_parameters, 2, axis=1)
-            bias = tf.squeeze(tf.tanh(split_normal_dist_parameters[0]), axis=1)
-            # bias = tf.squeeze(shift[s] + split_normal_dist_parameters[0], axis=1)
-            std = tf.squeeze(tf.exp(split_normal_dist_parameters[1]), axis=1) + base_std
             current_prediction_distribution = tfp.distributions.TruncatedNormal(loc=bias, scale=std, low=-1., high=1.)
 
             if take_mean:
@@ -93,11 +100,17 @@ class AutoregressiveDistribution:
         log_prob_ignore_pdf = self.config['policy']['log_prob_ignore_pdf']
         split_x = tf.split(x, len(self.distributions), axis=-1)
         log_probs = [
-            tf.expand_dims(self.distributions[d].log_prob(tf.squeeze(split_x[d], axis=1)), axis=1)
+            tf.expand_dims(
+                tf.log(tf.maximum(self.distributions[d].prob(tf.squeeze(split_x[d], axis=1)), log_prob_ignore_pdf)),
+                axis=1)
+            # tf.expand_dims(
+            #     tf.log(self.distributions[d].prob(tf.squeeze(split_x[d], axis=1)) + log_prob_ignore_pdf),
+            #     axis=1)
+            # tf.expand_dims(self.distributions[d].log_prob(tf.squeeze(split_x[d], axis=1)), axis=1)
             for d in range(len(self.distributions))
         ]
         log_probs = tf.concat(log_probs, axis=1)
-        log_probs = tf.maximum(log_probs, np.log(log_prob_ignore_pdf))
+        # log_probs = tf.maximum(log_probs, np.log(log_prob_ignore_pdf))
         return tf.reduce_sum(log_probs, axis=1)
 
     def sample(self):
