@@ -61,14 +61,19 @@ class EpisodeRunner:
         segment_collision = self.game.check_terminal_segment((start, goal))
         is_segment_valid = segment_collision == 0.0
 
-        segment_free = distance - segment_collision
-        assert segment_free >= 0.
+        segment_free = np.maximum(distance - segment_collision, 0.0)
 
-        free_cost = self._get_huber_loss(segment_free) * self.free_cost
-        collision_cost = self._get_huber_loss(segment_collision) * self.collision_cost
+        free_cost = self._get_distance_cost(segment_free) * self.free_cost
+        collision_cost = self._get_distance_cost(segment_collision) * self.collision_cost
         cost = free_cost + collision_cost
 
         return cost, is_start_valid, is_goal_valid, is_segment_valid
+
+    def _get_distance_cost(self, distance):
+        if self.config['cost']['type'] == 'linear':
+            return distance
+        elif self.config['cost']['type'] == 'huber':
+            return self._get_huber_loss(distance)
 
     def _get_huber_loss(self, distance):
         if distance < self.huber_loss_delta:
