@@ -13,7 +13,6 @@ from network import Network
 from summaries_collector import SummariesCollector
 from docker_path_helper import get_base_directory, init_dir
 from log_utils import init_log, print_and_log
-from value_function_printer import ValueFunctionPrinter
 
 
 def _get_game(config):
@@ -37,33 +36,32 @@ def _get_tests(config):
         return None
 
 
-def _train_at_level(level, network, sess, dataset, global_step, summaries_collector):
-    valid_data = [
-        (s, g, m, c) for (s, g, m, s_valid, g_valid, c) in dataset if s_valid and g_valid
-    ]
-    if len(valid_data) == 0:
-        print_and_log('############### no valid data')
-        return global_step
-
+def _train_at_level(config, top_level, network, sess, dataset, global_step, summaries_collector):
     summaries_frequency = config['general']['write_summaries_every']
     batch_size = config['model']['batch_size']
 
-    starts, ends, middles, costs = zip(*random.sample(valid_data, min(batch_size, len(valid_data))))
-    # starts, ends, middles, _, _, costs = zip(*random.sample(dataset, min(batch_size, len(dataset))))
-    summaries, prediction_loss, _ = network.train_policy(
-        starts, ends, middles, costs, sess)
-    if global_step % summaries_frequency == summaries_frequency - 1:
-        summaries_collector.write_train_optimization_summaries(summaries, global_step)
+    # for level in range(1, top_level+1):
+    for level in range(top_level, top_level + 1):
+        valid_data = [
+            (s, g, m, c) for (s, g, m, s_valid, g_valid, c) in dataset[level] if s_valid and g_valid
+        ]
+        if len(valid_data) == 0:
+            print_and_log('############### no valid data')
+            continue
+        starts, ends, middles, costs = zip(*random.sample(valid_data, min(batch_size, len(valid_data))))
+        summaries, prediction_loss, _ = network.train_policy(level, starts, ends, middles, costs, sess)
+        if global_step % summaries_frequency == summaries_frequency - 1:
+            summaries_collector.write_train_optimization_summaries(summaries, global_step)
 
-    global_step += 1
+        global_step += 1
     return global_step
 
 
-def _collect_data(count, level, episode_runner, trajectories_dir=None, is_train=True):
-    print_and_log('collecting {} {} episodes of level {}'.format(count, 'train' if is_train else 'test', level))
-    episode_results = episode_runner.play_random_episodes(count, level, is_train)
+def _collect_data(config, count, top_level, episode_runner, trajectories_dir=None, is_train=True):
+    print_and_log('collecting {} {} episodes of level {}'.format(count, 'train' if is_train else 'test', top_level))
+    episode_results = episode_runner.play_random_episodes(count, top_level, is_train)
     accumulated_cost, successes = [], []
-    dataset = []
+    dataset = {level: [] for level in range(1, top_level + 1)}
 
     if trajectories_dir is not None:
         init_dir(trajectories_dir)
@@ -86,18 +84,22 @@ def _collect_data(count, level, episode_runner, trajectories_dir=None, is_train=
         successes.append(is_valid_episode)
 
         # total cost:
-        total_cost = splits[(0, len(endpoints)-1)][-1]
+        total_cost = splits[top_level][(0, len(endpoints)-1)][-1]
         accumulated_cost.append(total_cost)
 
         # extend the dataset
-        current_dataset = splits.values()
-        if config['model']['gain'] == 'full-traj':
-            current_dataset = [(s, g, m, total_cost) for (s, g, m, c) in current_dataset]
-        elif config['model']['gain'] == 'future-only':
-            pass
-        else:
-            assert False
-        dataset.extend(current_dataset)
+        gain = config['model']['gain']
+        for level in range(1, top_level + 1):
+            current_dataset = splits[level].values()
+            if gain == 'full-traj':
+                current_dataset = [
+                    (s, g, m, s_valid, g_valid, total_cost) for (s, g, m, s_valid, g_valid, c) in current_dataset
+                ]
+            elif gain == 'future-only':
+                pass
+            else:
+                assert False
+            dataset[level].extend(current_dataset)
 
     successes = np.mean(successes)
     accumulated_cost = np.mean(accumulated_cost)
@@ -166,12 +168,12 @@ def run_for_config(config):
             else:
                 trajectories_dir = None
             successes, accumulated_cost, dataset = _collect_data(
-                train_episodes_per_cycle, current_level, episode_runner, trajectories_dir, True)
+                config, train_episodes_per_cycle, current_level, episode_runner, trajectories_dir, True)
             if global_step % config['general']['write_summaries_every']:
                 summaries_collector.write_train_success_summaries(sess, global_step, successes)
 
             global_step = _train_at_level(
-                current_level, network, sess, dataset, global_step, summaries_collector)
+                config, current_level, network, sess, dataset, global_step, summaries_collector)
             print_and_log('done training cycle {} global step {}'.format(cycle, global_step))
             # save every now and then
             if cycle % save_frequency == save_frequency - 1:
@@ -181,14 +183,14 @@ def run_for_config(config):
                 # do test
                 test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name, str(global_step))
                 test_successes, _, _ = _collect_data(
-                    test_episodes, current_level, episode_runner, test_trajectories_dir, False)
+                    config, test_episodes, current_level, episode_runner, test_trajectories_dir, False)
                 summaries_collector.write_test_success_summaries(sess, global_step, test_successes)
                 # decide how to act next
                 print_and_log('old success rate was {} at step {}'.format(best_success_rate, best_success_global_step))
                 if best_success_rate is None or test_successes > best_success_rate:
                     print_and_log('new best success rate {} at step {}'.format(test_successes, global_step))
                     best_success_rate, best_success_global_step = test_successes, global_step
-                    print_and_log('current learn rates {}'.format(sess.run(network.learn_rate_variable)))
+                    print_and_log('current learn rates {}'.format(network.get_learn_rates(sess, current_level)))
                     no_test_improvement = 0
                     consecutive_learn_rate_decrease = 0
                     best_saver.save(sess, global_step)
@@ -199,21 +201,26 @@ def run_for_config(config):
                     print_and_log('no improvement count {} of {}'.format(
                         no_test_improvement, decrease_learn_rate_if_static_success))
                     if no_test_improvement == decrease_learn_rate_if_static_success:
-                        sess.run(network.decrease_learn_rate_op)
+                        network.decrease_learn_rates(sess, current_level)
                         no_test_improvement = 0
                         consecutive_learn_rate_decrease += 1
                         print_and_log('decreasing learn rates {} of {}'.format(
                             consecutive_learn_rate_decrease, stop_training_after_learn_rate_decrease)
                         )
-                        print_and_log('new learn rates {}'.format(sess.run(network.learn_rate_variable)))
+                        print_and_log('new learn rates {}'.format(network.get_learn_rates(sess, current_level)))
                         if consecutive_learn_rate_decrease == stop_training_after_learn_rate_decrease:
                             best_saver.restore(sess)
                             current_level += 1
-                            best_success_rate, best_success_global_step = None, None
-                            no_test_improvement, consecutive_learn_rate_decrease = 0, 0
+                            if current_level <= config['model']['levels']:
+                                best_success_rate, best_success_global_step = None, None
+                                no_test_improvement, consecutive_learn_rate_decrease = 0, 0
+                                print_and_log('initiating level {} from previous level'.format(current_level))
+                                network.init_policy_from_lower_level(sess, current_level)
 
             # mark in log the end of cycle
             print_and_log(os.linesep)
+
+        return best_success_rate
 
 
 if __name__ == '__main__':

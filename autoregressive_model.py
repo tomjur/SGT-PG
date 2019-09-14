@@ -4,9 +4,10 @@ import tensorflow_probability as tfp
 
 
 class AutoregressiveModel:
-    def __init__(self, config):
+    def __init__(self, config, level):
         self.config = config
         self.state_size = self.config['model']['state_size']
+        self.name_prefix = 'policy_level_{}'.format(level)
         self._reuse = False
 
     def create_network(self, start_inputs, goal_inputs, middle_inputs=None, take_mean=False):
@@ -29,14 +30,14 @@ class AutoregressiveModel:
             current = current_input
             for i, layer_size in enumerate(network_layers):
                 current = tf.layers.dense(
-                    current, layer_size, activation=activation, name='policy_autoregressive_{}_layer_{}'.format(s, i),
-                    reuse=self._reuse
+                    current, layer_size, activation=activation,
+                    name='{}_autoregressive_{}_layer_{}'.format(self.name_prefix, s, i), reuse=self._reuse
                 )
 
             if learn_std:
                 normal_dist_parameters = tf.layers.dense(
-                    current, 2, activation=None, name='policy_autoregressive_{}_normal_dist_parameters'.format(s),
-                    reuse=self._reuse
+                    current, 2, activation=None,
+                    name='{}_autoregressive_{}_normal_dist_parameters'.format(self.name_prefix, s), reuse=self._reuse
                 )
                 split_normal_dist_parameters = tf.split(normal_dist_parameters, 2, axis=1)
                 bias = tf.squeeze(tf.tanh(split_normal_dist_parameters[0]), axis=1)
@@ -48,8 +49,8 @@ class AutoregressiveModel:
                 std = tf.squeeze(tf.exp(std), axis=1)
             else:
                 normal_dist_parameters = tf.layers.dense(
-                    current,  1, activation=None, name='policy_autoregressive_{}_normal_dist_parameters'.format(s),
-                    reuse=self._reuse
+                    current,  1, activation=None,
+                    name='{}_autoregressive_{}_normal_dist_parameters'.format(self.name_prefix, s), reuse=self._reuse
                 )
                 # bias = tf.squeeze(shift[s] + normal_dist_parameters, axis=1)
                 bias = tf.squeeze(tf.tanh(normal_dist_parameters), axis=1)
