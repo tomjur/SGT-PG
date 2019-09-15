@@ -12,7 +12,7 @@ from model_saver import ModelSaver
 from network import Network
 from summaries_collector import SummariesCollector
 from docker_path_helper import get_base_directory, init_dir
-from log_utils import init_log, print_and_log
+from log_utils import init_log, print_and_log, close_log
 
 
 def _get_game(config):
@@ -40,8 +40,9 @@ def _train_at_level(config, top_level, network, sess, dataset, global_step, summ
     summaries_frequency = config['general']['write_summaries_every']
     batch_size = config['model']['batch_size']
 
-    # for level in range(1, top_level+1):
-    for level in range(top_level, top_level + 1):
+    # for level in range(top_level, top_level + 1):
+    for level in range(1, top_level+1):
+
         valid_data = [
             (s, g, m, c) for (s, g, m, s_valid, g_valid, c) in dataset[level] if s_valid and g_valid
         ]
@@ -187,21 +188,26 @@ def run_for_config(config):
                 summaries_collector.write_test_success_summaries(sess, global_step, test_successes)
                 # decide how to act next
                 print_and_log('old success rate was {} at step {}'.format(best_success_rate, best_success_global_step))
+
+                should_increase_level = False
+                print_and_log('current learn rates {}'.format(network.get_learn_rates(sess, current_level)))
                 if best_success_rate is None or test_successes > best_success_rate:
                     print_and_log('new best success rate {} at step {}'.format(test_successes, global_step))
                     best_success_rate, best_success_global_step = test_successes, global_step
-                    print_and_log('current learn rates {}'.format(network.get_learn_rates(sess, current_level)))
                     no_test_improvement = 0
                     consecutive_learn_rate_decrease = 0
                     best_saver.save(sess, global_step)
 
+                    # if test_successes == 1.:
+                    #     should_increase_level = True
                 else:
                     print_and_log('new model is not the best')
                     no_test_improvement += 1
                     print_and_log('no improvement count {} of {}'.format(
                         no_test_improvement, decrease_learn_rate_if_static_success))
                     if no_test_improvement == decrease_learn_rate_if_static_success:
-                        network.decrease_learn_rates(sess, current_level)
+                        for l in range(1, current_level+1):
+                            network.decrease_learn_rates(sess, l)
                         no_test_improvement = 0
                         consecutive_learn_rate_decrease += 1
                         print_and_log('decreasing learn rates {} of {}'.format(
@@ -209,17 +215,21 @@ def run_for_config(config):
                         )
                         print_and_log('new learn rates {}'.format(network.get_learn_rates(sess, current_level)))
                         if consecutive_learn_rate_decrease == stop_training_after_learn_rate_decrease:
-                            best_saver.restore(sess)
-                            current_level += 1
-                            if current_level <= config['model']['levels']:
-                                best_success_rate, best_success_global_step = None, None
-                                no_test_improvement, consecutive_learn_rate_decrease = 0, 0
-                                print_and_log('initiating level {} from previous level'.format(current_level))
-                                network.init_policy_from_lower_level(sess, current_level)
+                            should_increase_level = True
+
+                if should_increase_level:
+                    best_saver.restore(sess)
+                    current_level += 1
+                    if current_level <= config['model']['levels']:
+                        best_success_rate, best_success_global_step = None, None
+                        no_test_improvement, consecutive_learn_rate_decrease = 0, 0
+                        print_and_log('initiating level {} from previous level'.format(current_level))
+                        network.init_policy_from_lower_level(sess, current_level)
 
             # mark in log the end of cycle
             print_and_log(os.linesep)
 
+        close_log()
         return best_success_rate
 
 
