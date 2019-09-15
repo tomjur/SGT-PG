@@ -75,6 +75,8 @@ class EpisodeRunner:
             return distance
         elif self.config['cost']['type'] == 'huber':
             return self._get_huber_loss(distance)
+        elif self.config['cost']['type'] == 'square':
+            return np.square(distance)
 
     def _get_huber_loss(self, distance):
         if distance < self.huber_loss_delta:
