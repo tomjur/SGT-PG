@@ -40,9 +40,10 @@ class AutoregressiveModel:
                     name='{}_autoregressive_{}_normal_dist_parameters'.format(self.name_prefix, s), reuse=self._reuse
                 )
                 split_normal_dist_parameters = tf.split(normal_dist_parameters, 2, axis=1)
-                bias = tf.squeeze(tf.tanh(split_normal_dist_parameters[0]), axis=1)
+                # bias = tf.squeeze(tf.tanh(split_normal_dist_parameters[0]), axis=1)
+                bias = tf.squeeze(split_normal_dist_parameters[0], axis=1)
+                bias = tf.maximum(tf.minimum(bias, 1.), -1.)
                 # bias = tf.squeeze(shift[s] + split_normal_dist_parameters[0], axis=1)
-                # bias = tf.maximum(tf.minimum(bias, 1.), -1.)
                 std = split_normal_dist_parameters[1]
                 if base_std > 0.0:
                     std = tf.maximum(std, np.log(base_std))
@@ -53,22 +54,32 @@ class AutoregressiveModel:
                     name='{}_autoregressive_{}_normal_dist_parameters'.format(self.name_prefix, s), reuse=self._reuse
                 )
                 # bias = tf.squeeze(shift[s] + normal_dist_parameters, axis=1)
-                bias = tf.squeeze(tf.tanh(normal_dist_parameters), axis=1)
+                # bias = tf.squeeze(tf.tanh(normal_dist_parameters), axis=1)
+                bias = tf.squeeze(normal_dist_parameters, axis=1)
+                bias = tf.maximum(tf.minimum(bias, 1.), -1.)
                 std = base_std
 
+            # save the distribution
             current_prediction_distribution = tfp.distributions.TruncatedNormal(loc=bias, scale=std, low=-1., high=1.)
+            distributions.append(current_prediction_distribution)
 
+            # sample from the distribution
             if take_mean:
+                # not really a sample, take the mean
                 current_sample = current_prediction_distribution.mean()
             else:
+                # sample
                 current_sample = current_prediction_distribution.sample()
             current_sample = tf.expand_dims(current_sample, axis=-1)
             samples.append(current_sample)
+
+            # generate the input for the next layer
             if split_middle_inputs is None:
+                # the input is determined by the sample
                 current_input = tf.concat((current_input, current_sample), axis=1)
             else:
+                # the input is determined by the initial middle state
                 current_input = tf.concat((current_input, split_middle_inputs[s]), axis=1)
-            distributions.append(current_prediction_distribution)
 
         model_variables = tf.trainable_variables()[variable_count:]
         if self._reuse:
