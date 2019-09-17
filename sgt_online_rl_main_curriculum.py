@@ -40,9 +40,13 @@ def _train_at_level(config, top_level, network, sess, dataset, global_step, summ
     summaries_frequency = config['general']['write_summaries_every']
     batch_size = config['model']['batch_size']
 
-    # for level in range(top_level, top_level + 1):
-    for level in range(1, top_level+1):
-
+    if config['model']['train_levels'] == 'all-below':
+        levels_to_train = range(1, top_level+1)
+    elif config['model']['train_levels'] == 'topmost':
+        levels_to_train = range(top_level, top_level + 1)
+    else:
+        assert False
+    for level in levels_to_train:
         valid_data = [
             (s, g, m, c) for (s, g, m, s_valid, g_valid, c) in dataset[level] if s_valid and g_valid
         ]
@@ -183,7 +187,7 @@ def run_for_config(config):
             if cycle % test_frequency == 0 or best_success_rate is None or best_success_rate < successes:
                 # do test
                 test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name, str(global_step))
-                test_successes, _, _ = _collect_data(
+                test_successes, test_cost, _ = _collect_data(
                     config, test_episodes, current_level, episode_runner, test_trajectories_dir, False)
                 summaries_collector.write_test_success_summaries(sess, global_step, test_successes)
                 # decide how to act next
@@ -206,7 +210,13 @@ def run_for_config(config):
                     print_and_log('no improvement count {} of {}'.format(
                         no_test_improvement, decrease_learn_rate_if_static_success))
                     if no_test_improvement == decrease_learn_rate_if_static_success:
-                        for l in range(1, current_level+1):
+                        if config['model']['train_levels'] == 'all-below':
+                            levels_to_decrease_learn_rate = range(1, current_level + 1)
+                        elif config['model']['train_levels'] == 'topmost':
+                            levels_to_decrease_learn_rate = range(current_level, current_level + 1)
+                        else:
+                            assert False
+                        for l in levels_to_decrease_learn_rate:
                             network.decrease_learn_rates(sess, l)
                         no_test_improvement = 0
                         consecutive_learn_rate_decrease += 1
@@ -224,11 +234,13 @@ def run_for_config(config):
                         best_success_rate, best_success_global_step = None, None
                         no_test_improvement, consecutive_learn_rate_decrease = 0, 0
                         print_and_log('initiating level {} from previous level'.format(current_level))
-                        network.init_policy_from_lower_level(sess, current_level)
+                        if config['model']['init_from_lower_level']:
+                            network.init_policy_from_lower_level(sess, current_level)
 
             # mark in log the end of cycle
             print_and_log(os.linesep)
 
+        print_and_log('end of run best: {} from step: {}'.format(best_success_rate, best_success_global_step))
         close_log()
         return best_success_rate
 
