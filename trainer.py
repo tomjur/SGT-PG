@@ -63,7 +63,7 @@ class Trainer:
             if global_step % self.summaries_frequency == 0:
                 self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
             global_step += 1
-        return global_step
+        return global_step, prediction_loss
 
     def collect_data(self, count, top_level, trajectories_dir=None, is_train=True):
         print_and_log('collecting {} {} episodes of level {}'.format(count, 'train' if is_train else 'test', top_level))

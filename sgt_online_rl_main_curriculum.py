@@ -87,8 +87,10 @@ def run_for_config(config):
                 break
             print_and_log('starting cycle {}, level {}'.format(cycle, current_level))
 
-            for _ in range(config['value_function']['updates_per_cycle']):
-                global_step = trainer.train_value_function_at_level(current_level, global_step)
+            for _ in range(config['value_function']['max_straight_updates']):
+                global_step, value_function_loss = trainer.train_value_function_at_level(current_level, global_step)
+                if value_function_loss < config['policy']['value_loss_threshold']:
+                    break
 
             global_step = trainer.train_policy_at_level(current_level, global_step)
 
