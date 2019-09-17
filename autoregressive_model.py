@@ -109,16 +109,16 @@ class AutoregressiveDistribution:
         self.sample_ops = sample_ops
 
     def log_prob(self, x):
-        log_prob_ignore_pdf = self.config['policy']['log_prob_ignore_pdf']
+        # log_prob_ignore_pdf = self.config['policy']['log_prob_ignore_pdf']
         split_x = tf.split(x, len(self.distributions), axis=-1)
         log_probs = [
-            tf.expand_dims(
-                tf.log(tf.maximum(self.distributions[d].prob(tf.squeeze(split_x[d], axis=1)), log_prob_ignore_pdf)),
-                axis=1)
+            # tf.expand_dims(
+            #     tf.log(tf.maximum(self.distributions[d].prob(tf.squeeze(split_x[d], axis=1)), log_prob_ignore_pdf)),
+            #     axis=1)
             # tf.expand_dims(
             #     tf.log(self.distributions[d].prob(tf.squeeze(split_x[d], axis=1)) + log_prob_ignore_pdf),
             #     axis=1)
-            # tf.expand_dims(self.distributions[d].log_prob(tf.squeeze(split_x[d], axis=1)), axis=1)
+            tf.expand_dims(self.distributions[d].log_prob(tf.squeeze(split_x[d], axis=1)), axis=1)
             for d in range(len(self.distributions))
         ]
         log_probs = tf.concat(log_probs, axis=1)
