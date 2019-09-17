@@ -2,6 +2,8 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
+from network_utils import get_activation
+
 
 class AutoregressiveModel:
     def __init__(self, config, level):
@@ -12,7 +14,7 @@ class AutoregressiveModel:
 
     def create_network(self, start_inputs, goal_inputs, middle_inputs=None, take_mean=False):
         variable_count = len(tf.trainable_variables())
-        activation = AutoregressiveModel.get_activation(self.config['policy']['activation'])
+        activation = get_activation(self.config['policy']['activation'])
         network_layers = self.config['policy']['layers']
         base_std = self.config['policy']['base_std']
         learn_std = self.config['policy']['learn_std']
@@ -90,16 +92,6 @@ class AutoregressiveModel:
         # wrap as a distribution
         auto_regressive_distribution = AutoregressiveDistribution(self.config, distributions, samples)
         return auto_regressive_distribution, model_variables
-
-    @staticmethod
-    def get_activation(activation):
-        if activation == 'relu':
-            return tf.nn.relu
-        if activation == 'tanh':
-            return tf.nn.tanh
-        if activation == 'elu':
-            return tf.nn.elu
-        return None
 
 
 class AutoregressiveDistribution:
