@@ -122,6 +122,7 @@ def run_for_config(config):
                     print_and_log('no improvement count {} of {}'.format(
                         no_test_improvement, decrease_learn_rate_if_static_success))
                     if no_test_improvement == decrease_learn_rate_if_static_success:
+                        best_saver.restore(sess)
                         if config['model']['train_levels'] == 'all-below':
                             levels_to_decrease_learn_rate = range(1, current_level + 1)
                         elif config['model']['train_levels'] == 'topmost':
