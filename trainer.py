@@ -25,7 +25,8 @@ class Trainer:
 
     def train_policy_at_level(self, top_level, global_step):
         successes, accumulated_cost, dataset = self.collect_data(
-            self.train_episodes_per_cycle, top_level, self._get_trajectories_dir(global_step), True)
+            self.train_episodes_per_cycle, top_level, trajectories_dir=self._get_trajectories_dir(global_step),
+            is_train=True, use_fixed_start_goal_pairs=False)
         if global_step % self.summaries_frequency == 0:
             self.summaries_collector.write_train_success_summaries(self.sess, global_step, successes)
 
@@ -47,10 +48,12 @@ class Trainer:
 
     def train_value_function_at_level(self, top_level, global_step):
         successes, accumulated_cost, dataset = self.collect_data(
-            self.train_episodes_per_cycle, top_level, self._get_trajectories_dir(global_step), True)
+            self.train_episodes_per_cycle, top_level, trajectories_dir=self._get_trajectories_dir(global_step),
+            is_train=True, use_fixed_start_goal_pairs=False)
         if global_step % self.summaries_frequency == 0:
             self.summaries_collector.write_train_success_summaries(self.sess, global_step, successes)
 
+        prediction_loss = None
         for level in self._get_relevant_levels(top_level):
             valid_data = [
                 (s, g, m, c) for (s, g, m, s_valid, g_valid, c) in dataset[level] if s_valid and g_valid
@@ -65,9 +68,12 @@ class Trainer:
             global_step += 1
         return global_step, prediction_loss
 
-    def collect_data(self, count, top_level, trajectories_dir=None, is_train=True):
+    def collect_data(self, count, top_level, trajectories_dir=None, is_train=True, use_fixed_start_goal_pairs=False):
         print_and_log('collecting {} {} episodes of level {}'.format(count, 'train' if is_train else 'test', top_level))
-        episode_results = self.episode_runner.play_random_episodes(count, top_level, is_train)
+        if use_fixed_start_goal_pairs:
+            episode_results = self.episode_runner.play_fixed_episodes(top_level, is_train)
+        else:
+            episode_results = self.episode_runner.play_random_episodes(count, top_level, is_train)
         accumulated_cost, successes = [], []
         dataset = {level: [] for level in range(1, top_level + 1)}
 

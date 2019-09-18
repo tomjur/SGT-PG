@@ -82,9 +82,6 @@ def run_for_config(config):
         no_test_improvement, consecutive_learn_rate_decrease = 0, 0
 
         for cycle in range(config['general']['training_cycles']):
-            if current_level > config['model']['levels']:
-                print_and_log('trained all {} levels - needs to stop'.format(current_level))
-                break
             print_and_log('starting cycle {}, level {}'.format(cycle, current_level))
 
             for _ in range(config['value_function']['max_straight_updates']):
@@ -103,7 +100,8 @@ def run_for_config(config):
                 # do test
                 test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name, str(global_step))
                 test_successes, test_cost, _ = trainer.collect_data(
-                    config['general']['test_episodes'], current_level, test_trajectories_dir, False)
+                    config['general']['test_episodes'], current_level, trajectories_dir=test_trajectories_dir,
+                    is_train=False, use_fixed_start_goal_pairs=True)
                 summaries_collector.write_test_success_summaries(sess, global_step, test_successes)
                 # decide how to act next
                 print_and_log('old success rate was {} at step {}'.format(best_success_rate, best_success_global_step))
@@ -154,11 +152,20 @@ def run_for_config(config):
                         print_and_log('initiating level {} from previous level'.format(current_level))
                         if config['model']['init_from_lower_level']:
                             network.init_policy_from_lower_level(sess, current_level)
+                    else:
+                        # return the current level to its correct level for final prediction
+                        current_level -= 1
+                        print_and_log('trained all {} levels - needs to stop'.format(current_level))
+                        break
 
             # mark in log the end of cycle
             print_and_log(os.linesep)
 
         print_and_log('end of run best: {} from step: {}'.format(best_success_rate, best_success_global_step))
+        test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name, str(-1))
+        trainer.collect_data(config['general']['test_episodes'], current_level, trajectories_dir=test_trajectories_dir,
+                             is_train=False, use_fixed_start_goal_pairs=False)
+
         close_log()
         return best_success_rate
 

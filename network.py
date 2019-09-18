@@ -87,7 +87,11 @@ class Network:
 
     def decrease_learn_rates(self, sess, level):
         assert 1 <= level <= self.levels
-        return sess.run(self.policy_networks[level].decrease_learn_rate_op)
+        ops = [
+            self.policy_networks[level].decrease_learn_rate_op,
+            self.value_networks[level].decrease_learn_rate_op,
+        ]
+        return sess.run(ops)
 
     def get_learn_rates(self, sess, level_limit=None):
         if level_limit is None:
@@ -226,6 +230,8 @@ class ValueNetwork:
 
         # compute the loss
         self.prediction_loss = tf.losses.mean_squared_error(self.label_inputs, self.value_prediction)
+        absolute_prediction_error = tf.abs(self.label_inputs - self.value_prediction)
+        mean_absolute_error = tf.reduce_mean(absolute_prediction_error)
 
         # optimize
         self.learn_rate_variable = tf.Variable(
@@ -246,6 +252,9 @@ class ValueNetwork:
         merge_summaries = [
             tf.summary.scalar('{}_prediction_loss'.format(self.name_prefix), self.prediction_loss),
             tf.summary.scalar('{}_learn_rate'.format(self.name_prefix), self.learn_rate_variable),
+            tf.summary.scalar('{}_mean_absolute_error'.format(self.name_prefix), mean_absolute_error),
+            tf.summary.histogram('{}_cost'.format(self.name_prefix), self.label_inputs),
+            tf.summary.histogram('{}_absolute_prediction_error'.format(self.name_prefix), absolute_prediction_error)
         ]
         if self.initial_gradients_norm is not None:
             merge_summaries.append(
