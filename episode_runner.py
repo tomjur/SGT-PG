@@ -10,6 +10,14 @@ class EpisodeRunner:
         self.free_cost = self.config['cost']['free_cost']
         self.huber_loss_delta = self.config['cost']['huber_loss_delta']
 
+        self.fixed_start_goal_pairs = [
+            (self.game.get_free_random_state(), self.game.get_free_random_state())
+            for _ in range(config['general']['test_episodes'])
+        ]
+
+    def play_fixed_episodes(self, top_level, is_train=False):
+        return self.play_episodes(self.fixed_start_goal_pairs, top_level, is_train)
+
     def play_random_episodes(self, number_of_episodes, top_level, is_train):
         start_goal_pairs = [
             (self.game.get_free_random_state(), self.game.get_free_random_state()) for _ in range(number_of_episodes)
