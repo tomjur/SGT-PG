@@ -103,8 +103,7 @@ def run_for_config(config):
                 test_successes, test_cost, _ = trainer.collect_data(
                     config['general']['test_episodes'], current_level, trajectories_dir=test_trajectories_dir,
                     is_train=False, use_fixed_start_goal_pairs=True)
-                summaries_collector.write_test_success_summaries(sess, global_step, test_successes)
-                summaries_collector.write_test_cost_summaries(sess, global_step, test_cost)
+                summaries_collector.write_test_success_summaries(sess, global_step, test_successes, test_cost)
 
                 # decide how to act next
                 print_and_log('old cost was {} at step {}'.format(best_cost, best_cost_global_step))

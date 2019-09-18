@@ -28,7 +28,7 @@ class Trainer:
             self.train_episodes_per_cycle, top_level, trajectories_dir=self._get_trajectories_dir(global_step),
             is_train=True, use_fixed_start_goal_pairs=False)
         if global_step % self.summaries_frequency == 0:
-            self.summaries_collector.write_train_success_summaries(self.sess, global_step, successes)
+            self.summaries_collector.write_train_success_summaries(self.sess, global_step, successes, accumulated_cost)
 
         for level in self._get_relevant_levels(top_level):
             valid_data = [
@@ -51,7 +51,7 @@ class Trainer:
             self.train_episodes_per_cycle, top_level, trajectories_dir=self._get_trajectories_dir(global_step),
             is_train=True, use_fixed_start_goal_pairs=False)
         if global_step % self.summaries_frequency == 0:
-            self.summaries_collector.write_train_success_summaries(self.sess, global_step, successes)
+            self.summaries_collector.write_train_success_summaries(self.sess, global_step, successes, accumulated_cost)
 
         prediction_loss = None
         for level in self._get_relevant_levels(top_level):
