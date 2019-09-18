@@ -78,7 +78,7 @@ def run_for_config(config):
 
         current_level = config['model']['starting_level']
         global_step = 0
-        best_success_rate, best_success_global_step = None, None
+        best_cost, best_cost_global_step = None, None
         no_test_improvement, consecutive_learn_rate_decrease = 0, 0
 
         for cycle in range(config['general']['training_cycles']):
@@ -92,6 +92,7 @@ def run_for_config(config):
             global_step = trainer.train_policy_at_level(current_level, global_step)
 
             print_and_log('done training cycle {} global step {}'.format(cycle, global_step))
+
             # save every now and then
             if cycle % config['general']['save_every_cycles'] == 0:
                 latest_saver.save(sess, global_step=global_step)
@@ -103,25 +104,21 @@ def run_for_config(config):
                     config['general']['test_episodes'], current_level, trajectories_dir=test_trajectories_dir,
                     is_train=False, use_fixed_start_goal_pairs=True)
                 summaries_collector.write_test_success_summaries(sess, global_step, test_successes)
-                # decide how to act next
-                print_and_log('old success rate was {} at step {}'.format(best_success_rate, best_success_global_step))
+                summaries_collector.write_test_cost_summaries(sess, global_step, test_cost)
 
+                # decide how to act next
+                print_and_log('old cost was {} at step {}'.format(best_cost, best_cost_global_step))
                 should_increase_level = False
                 print_and_log('current learn rates {}'.format(network.get_learn_rates(sess, current_level)))
-                if best_success_rate is None or test_cost < best_success_rate:
-                # if best_success_rate is None or test_successes > best_success_rate:
-                #     print_and_log('new best success rate {} at step {}'.format(test_successes, global_step))
-                #     best_success_rate, best_success_global_step = test_successes, global_step
+                if best_cost is None or test_cost < best_cost:
                     print_and_log('new best success rate {} at step {}'.format(test_cost, global_step))
-                    best_success_rate, best_success_global_step = test_cost, global_step
+                    best_cost, best_cost_global_step = test_cost, global_step
                     no_test_improvement = 0
                     consecutive_learn_rate_decrease = 0
                     best_saver.save(sess, global_step)
 
-                    # if test_successes == 1.:
-                    #     should_increase_level = True
                 else:
-                    print_and_log('new model is not the best')
+                    print_and_log('new model is not the best with cost {} at step {}'.format(test_cost, global_step))
                     no_test_improvement += 1
                     print_and_log('no improvement count {} of {}'.format(
                         no_test_improvement, decrease_learn_rate_if_static_success))
@@ -147,7 +144,7 @@ def run_for_config(config):
                     best_saver.restore(sess)
                     current_level += 1
                     if current_level <= config['model']['levels']:
-                        best_success_rate, best_success_global_step = None, None
+                        best_cost, best_cost_global_step = None, None
                         no_test_improvement, consecutive_learn_rate_decrease = 0, 0
                         print_and_log('initiating level {} from previous level'.format(current_level))
                         if config['model']['init_from_lower_level']:
@@ -161,13 +158,14 @@ def run_for_config(config):
             # mark in log the end of cycle
             print_and_log(os.linesep)
 
-        print_and_log('end of run best: {} from step: {}'.format(best_success_rate, best_success_global_step))
+        print_and_log('end of run best: {} from step: {}'.format(best_cost, best_cost_global_step))
+        print_and_log('testing on a new set of start-goal pairs')
         test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name, str(-1))
         trainer.collect_data(config['general']['test_episodes'], current_level, trajectories_dir=test_trajectories_dir,
                              is_train=False, use_fixed_start_goal_pairs=False)
 
         close_log()
-        return best_success_rate
+        return best_cost
 
 
 if __name__ == '__main__':
