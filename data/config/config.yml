@@ -17,7 +17,7 @@ general:
 #  train_episodes_per_cycle: 1000
 #  test_episodes: 1000
 #  test_episodes: 1
-  test_episodes: 100
+  test_episodes: 1000
 #  episodes_per_cycle: 3
   save_every_cycles: 1000000
   cycles_per_trajectory_print: 1000000
@@ -43,9 +43,10 @@ model:
 #  init_from_lower_level: True
   init_from_lower_level: False
   batch_size: 20000
-  decrease_learn_rate_if_static_success: 100
+#  decrease_learn_rate_if_static_success: 100
 #  decrease_learn_rate_if_static_success: 100
 #  decrease_learn_rate_if_static_success: 25
+  decrease_learn_rate_if_static_success: 10
 #  decrease_learn_rate_if_static_success: 3
 #  decrease_learn_rate_if_static_success: 2
 #  stop_training_after_learn_rate_decrease: 10
@@ -58,23 +59,24 @@ model:
 policy:
 #  learning_rate: 0.0001
 #  learning_rate: 0.0001
-  learning_rate: 0.00001
+  learning_rate: 0.001
 #  learning_rate: 0.0005
 #  learning_rate: 0.005
 #  learning_rate: 0.001
 #  learning_rate_decrease_rate: 1.
 #  learning_rate_decrease_rate: 0.8
-  learning_rate_decrease_rate: 0.8
+  learning_rate_decrease_rate: 0.9
   learning_rate_minimum: 0.0000000001
-#  gradient_limit: 0.0
+  gradient_limit: 0.0
 #  gradient_limit: 1000.0 # for cost 100
 #  gradient_limit: 10000.0 # for cost 200
-  gradient_limit: 1400.0
+#  gradient_limit: 1400.0
 #  layers: [400, 400, 400, 400]
 #  layers: [1000, 1000, 1000]
-  layers: [1000, 1000]
+#  layers: [1000, 1000]
 #  layers: [100, 100, 100, 100]
 #  layers: [20, 20]
+  layers: [20, 20, 20, 20, 20]
 #  layers: [20, 20, 20]
 #  layers: [5, 5]
 #  layers: [2]
@@ -94,12 +96,14 @@ policy:
   value_loss_threshold: 0.01
 
 value_function:
-  learning_rate: 0.001
-  learning_rate_decrease_rate: 0.8
+  learning_rate: 0.01
+  learning_rate_decrease_rate: 0.9
   learning_rate_minimum: 0.0000000001
 #  gradient_limit: 0.0
   gradient_limit: 800.0
 #  layers: [400, 400, 400, 400, 400, 400]
+#  layers: [1000, 1000, 1000, 1000, 1000, 1000]
+#  layers: [2000, 2000, 2000, 2000]
   layers: [100, 100, 100, 100]
 #  layers: [20, 20, 20]
 #  layers: [5]
@@ -107,4 +111,4 @@ value_function:
   activation: 'elu'
 #  activation: 'relu'
 #  activation: 'tanh'
-  max_straight_updates: 1000
+  max_straight_updates: 100
