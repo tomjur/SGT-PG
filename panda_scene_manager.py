@@ -117,7 +117,7 @@ class PandaSceneManager:
         while len(trajectory) <= max_steps:
             last_state = trajectory[-1]
             current_joints = last_state[0][0]
-            if np.linalg.norm(target_position - current_joints) < self.position_sensitivity:
+            if self.is_close(current_joints, target_position):
                 # close enough
                 break
             if stop_on_collision and last_state[1]:
@@ -154,6 +154,8 @@ class PandaSceneManager:
         p.removeBody(obj)
         self.objects.remove(obj)
 
+    def is_close(self, state1, state2):
+        return np.linalg.norm(state1 - state2) < self.position_sensitivity
 
 if __name__ == '__main__':
     panda_scene_manager = PandaSceneManager(use_ui=False)
