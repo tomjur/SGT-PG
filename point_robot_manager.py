@@ -12,6 +12,7 @@ class PointRobotManager:
         self.dimension_length = 1.0
         # generate obstacles
         self.obstacles = self.parse_obstacles_definitions_list(obstacles_definitions_list)
+        # self.obstacles = self.parse_obstacles_definitions_list([])
 
     @staticmethod
     def use_speedups():
