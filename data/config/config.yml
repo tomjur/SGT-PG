@@ -1,7 +1,5 @@
 general:
   name:
-#  scenario: 'simple'
-#  scenario: 'hard'
 #  scenario: 'point_robot_easy'
 #  scenario: 'point_robot_easy2'
 #  scenario: 'point_robot_easy2_transposed'

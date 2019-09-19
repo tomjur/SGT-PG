@@ -1,8 +1,0 @@
-version: '3'
-services:
-  openrave_gpu_service:
-    image: tomjur/supervised_traj_split
-    volumes:
-      - ~/SubGoalTreesOnlineRL/data:/data
-
-
