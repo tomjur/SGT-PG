@@ -15,7 +15,7 @@ from trainer import Trainer
 
 
 def _get_game(config):
-    if config['general']['is_point_robot']:
+    if 'point_robot' in config['general']['scenario']:
         from point_robot_game import PointRobotGame
         return PointRobotGame(config)
     else:
@@ -64,8 +64,10 @@ def run_for_config(config):
     weights_log_dir = os.path.join(saver_dir, 'weights_logs')
     init_dir(weights_log_dir)
 
-    # generate graph:
-    network = Network(config)
+    # generate game
+    game = _get_game(config)
+
+    network = Network(config, game)
     network_variables = network.get_all_variables()
 
     # save model
@@ -81,7 +83,6 @@ def run_for_config(config):
     ) as sess:
         sess.run(tf.global_variables_initializer())
 
-        game = _get_game(config)
         policy_function = lambda starts, goals, level, is_train: network.predict_policy(
             starts, goals, level, sess, is_train)
         episode_runner = EpisodeRunner(config, game, policy_function)

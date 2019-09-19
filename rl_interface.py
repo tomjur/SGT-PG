@@ -1,6 +1,8 @@
 import os
 import numpy as np
 
+from docker_path_helper import get_base_directory
+
 
 class TrajectoryNode:
     # state: None - unresolved, 0 - split, 1 - free, 2 - segment collision, 3 - endpoint collision
@@ -67,15 +69,18 @@ class TrajectoryNode:
 class AbstractMotionPlanningGame:
     def __init__(self, config):
         self.config = config
-        lower, upper = self.config['general']['state_bounds']
+        lower, upper = self._get_state_bounds()
         self.lower = np.array(lower)
         self.upper = np.array(upper)
+        self.state_size = len(lower)
+        self.params_file = os.path.join(
+            get_base_directory(), 'scenario_params', config['general']['scenario'], 'params.pkl')
 
     def get_valid_states(self, states):
         return np.maximum(self.lower, np.minimum(self.upper, states))
 
     def get_random_state(self):
-        return np.random.uniform(self.lower, self.upper, self.config['model']['state_size'])
+        return np.random.uniform(self.lower, self.upper, self.state_size)
 
     def get_free_random_state(self):
         while True:
@@ -88,6 +93,9 @@ class AbstractMotionPlanningGame:
 
     def is_free_state(self, state):
         assert False
+
+    def _get_state_bounds(self):
+        return (0, ), (0, )
 
 
 class RLInterface:

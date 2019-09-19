@@ -6,9 +6,9 @@ from network_utils import optimize_by_loss, get_activation
 
 
 class Network:
-    def __init__(self, config):
+    def __init__(self, config, game):
         self.config = config
-        self.state_size = self.config['model']['state_size']
+        self.state_size = game.state_size
         self.levels = self.config['model']['levels']
 
         self.start_inputs = tf.placeholder(tf.float32, (None, self.state_size), name='start_inputs')
@@ -23,8 +23,8 @@ class Network:
         for level in range(1, 1+self.levels):
             # create policies
             current_policy = PolicyNetwork(
-                config, level, self.start_inputs, self.goal_inputs, self.middle_inputs, self.label_inputs,
-                previous_policy
+                config, level, self.state_size, self.start_inputs, self.goal_inputs, self.middle_inputs,
+                self.label_inputs, previous_policy
             )
             self.policy_networks[level] = current_policy
             previous_policy = current_policy
@@ -166,9 +166,9 @@ class Network:
 
 
 class PolicyNetwork:
-    def __init__(self, config, level, start_inputs, goal_inputs, middle_inputs, label_inputs, previous_policy):
+    def __init__(self, config, level, state_size, start_inputs, goal_inputs, middle_inputs, label_inputs, previous_policy):
         self.config = config
-        self.state_size = self.config['model']['state_size']
+        self.state_size = state_size
 
         self.start_inputs = start_inputs
         self.goal_inputs = goal_inputs
@@ -176,7 +176,7 @@ class PolicyNetwork:
         self.label_inputs = label_inputs
 
         # get the prediction distribution
-        self.autoregressive_net = AutoregressiveModel(config, level)
+        self.autoregressive_net = AutoregressiveModel(config, level, state_size)
         self.prediction_distribution, self.model_variables = self.autoregressive_net.create_network(
             self.start_inputs, self.goal_inputs, self.middle_inputs)
 

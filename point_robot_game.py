@@ -7,8 +7,11 @@ from rl_interface import AbstractMotionPlanningGame
 class PointRobotGame(AbstractMotionPlanningGame):
     def __init__(self, config):
         AbstractMotionPlanningGame.__init__(self, config)
-        with open(config['general']['params_file'], 'rb') as params_file:
-            obstacles_definitions_list = pickle.load(params_file)
+        if 'no_obs' in self.params_file:
+            obstacles_definitions_list = []
+        else:
+            with open(self.params_file, 'rb') as params_file:
+                obstacles_definitions_list = pickle.load(params_file)
         self.point_robot_manager = PointRobotManager(obstacles_definitions_list)
 
     def check_terminal_segment(self, segment):
@@ -16,3 +19,6 @@ class PointRobotGame(AbstractMotionPlanningGame):
 
     def is_free_state(self, state):
         return self.point_robot_manager.is_free(state)
+
+    def _get_state_bounds(self):
+        return (-1., -1.), (1., 1.)

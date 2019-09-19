@@ -6,9 +6,9 @@ from network_utils import get_activation
 
 
 class AutoregressiveModel:
-    def __init__(self, config, level):
+    def __init__(self, config, level, state_size):
         self.config = config
-        self.state_size = self.config['model']['state_size']
+        self.state_size = state_size
         self.name_prefix = 'policy_level_{}'.format(level)
         self._reuse = False
 
