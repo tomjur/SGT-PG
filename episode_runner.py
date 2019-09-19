@@ -53,15 +53,24 @@ class EpisodeRunner:
         return {path_id: self._process_endpoints(episode, top_level) for path_id, episode in enumerate(endpoints)}
 
     def _process_endpoints(self, endpoints, top_level):
+        can_recover = self.game.can_recover_from_failed_movement()
+
         is_valid_episode = True
         base_costs = {}
         splits = {}
         # compute base costs:
+        compute_cost = True
         for i in range(len(endpoints)-1):
             start, end = endpoints[i], endpoints[i+1]
-            cost, is_start_valid, is_goal_valid, is_segment_valid = self._get_cost(start, end)
-            base_costs[(i, i+1)] = (start, end, is_start_valid, is_goal_valid, cost)
-            is_valid_episode = is_valid_episode and is_segment_valid
+            if compute_cost:
+                cost, is_start_valid, is_goal_valid, is_segment_valid = self._get_cost(start, end)
+                if not can_recover and not is_segment_valid:
+                    # the agent can't teleport to new states, so the rest of the plan would have to be ignored
+                    compute_cost = False
+                base_costs[(i, i+1)] = (start, end, is_start_valid, is_goal_valid, cost)
+                is_valid_episode = is_valid_episode and is_segment_valid
+            else:
+                base_costs[(i, i + 1)] = (start, end, None, None, None)
 
         # compute for the upper levels
         for l in range(1, top_level + 1):
@@ -75,11 +84,22 @@ class EpisodeRunner:
                 cost_from = splits[l-1] if l > 1 else base_costs
                 first_is_start_valid, first_is_goal_valid, first_cost = cost_from[(start_index, middle_index)][-3:]
                 second_is_start_valid, second_is_goal_valid, second_cost = cost_from[(middle_index, end_index)][-3:]
-                assert first_is_goal_valid == second_is_start_valid
-                is_start_valid = first_is_start_valid
-                is_goal_valid = second_is_goal_valid
-                cost = first_cost + second_cost
+                if first_cost is None or second_cost is None:
+                    # if any segment is bad, ignore upper levels
+                    is_start_valid, is_goal_valid, cost = None, None, None
+                else:
+                    assert first_is_goal_valid == second_is_start_valid
+                    is_start_valid = first_is_start_valid
+                    is_goal_valid = second_is_goal_valid
+                    cost = first_cost + second_cost
                 splits[l][(start_index, end_index)] = (start, end, middle, is_start_valid, is_goal_valid, cost)
+
+            # clean all the bad segments
+            if not can_recover:
+                base_costs = {base_costs[t] for t in base_costs if base_costs[t][-1] is not None}
+                for l in range(1, top_level + 1):
+                    splits[l] = {splits[l][t] for t in splits[l] if splits[l][t][-1] is not None}
+
         return endpoints, splits, base_costs, is_valid_episode
 
     def _get_cost(self, start, goal):
