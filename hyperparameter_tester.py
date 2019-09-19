@@ -56,6 +56,7 @@ if __name__ == '__main__':
     # tries_per_config = 2
     number_of_groups = 20
     # number_of_groups = 4
+    failure_cost = 15.
 
     # read the config
     config = read_config()
@@ -75,7 +76,7 @@ if __name__ == '__main__':
         group_log = os.path.join(working_dir, 'group_{}_log_{}.txt'.format(group_index, run_name))
 
         current_config = _modify_config(config)
-        success_rates = []
+        costs = []
 
         copy_config(current_config, group_config)
         final_cost = None
@@ -84,18 +85,25 @@ if __name__ == '__main__':
                 tf.reset_default_graph()
                 current_cost = run_for_config(current_config)
                 write_to_text_log(group_log, 'try {} cost: {}'.format(try_index, current_cost))
-                success_rates.append(current_cost)
-                # if best_score is not None:
-                #     optimistic_scores = [1.] * (tries_per_config - len(success_rates))
-                #     optimistic_scores.extend(deepcopy(success_rates))
-                #     mean_optimistic_score = np.mean(optimistic_scores)
-                #     if mean_optimistic_score < best_score:
-                #         write_to_text_log(
-                #             group_log, 'aborting, mean optimistic score {} smaller than best score {}'.format(
-                #                 mean_optimistic_score, best_score))
-                #         # no point to test this config further
-                #         break
-            final_cost = np.mean(success_rates)
+                if current_cost > failure_cost:
+                    # no point to test this config further
+                    write_to_text_log(
+                        group_log, 'aborting, found cost {} greater than failure cost threshold {}'.format(
+                            current_cost, failure_cost))
+                    break
+                costs.append(current_cost)
+                # check optimistic score
+                if best_cost is not None:
+                    optimistic_costs = [0.] * (tries_per_config - len(costs))
+                    optimistic_costs.extend(deepcopy(costs))
+                    mean_optimistic_cost = np.mean(optimistic_costs)
+                    if mean_optimistic_cost > best_cost:
+                        # no point to test this config further
+                        write_to_text_log(
+                            group_log, 'aborting, mean optimistic cost {} greater than best cost {}'.format(
+                                mean_optimistic_cost, best_cost))
+                        break
+            final_cost = np.mean(costs)
             write_to_text_log(group_log, 'final cost: {}'.format(final_cost))
         except:
             write_to_text_log(group_log, 'error, run threw exception!')
