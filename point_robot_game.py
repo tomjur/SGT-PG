@@ -15,7 +15,10 @@ class PointRobotGame(AbstractMotionPlanningGame):
         self.point_robot_manager = PointRobotManager(obstacles_definitions_list)
 
     def check_terminal_segment(self, segment):
-        return self.point_robot_manager.is_linear_path_valid(segment[0], segment[1])
+        is_start_free = self.is_free_state(segment[0])
+        is_goal_free = self.is_free_state(segment[1])
+        collision_length = self.point_robot_manager.get_collision_length_in_segment(segment[0], segment[1])
+        return is_start_free, is_goal_free, collision_length
 
     def is_free_state(self, state):
         return self.point_robot_manager.is_free(state)

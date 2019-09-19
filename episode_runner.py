@@ -84,10 +84,7 @@ class EpisodeRunner:
 
     def _get_cost(self, start, goal):
         distance = np.linalg.norm(start - goal)
-        # distance = self._get_huber_loss(distance)
-        is_start_valid = self.game.is_free_state(start)
-        is_goal_valid = self.game.is_free_state(goal)
-        segment_collision = self.game.check_terminal_segment((start, goal))
+        is_start_valid, is_goal_valid, segment_collision = self.game.check_terminal_segment((start, goal))
         is_segment_valid = segment_collision == 0.0
 
         segment_free = np.maximum(distance - segment_collision, 0.0)
