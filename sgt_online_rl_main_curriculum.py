@@ -19,8 +19,7 @@ def _get_game(config):
         from point_robot_game import PointRobotGame
         return PointRobotGame(config)
     else:
-        from openrave_game import OpenraveGame
-        return OpenraveGame(config)
+        assert False
 
 
 def _get_tests(config):
