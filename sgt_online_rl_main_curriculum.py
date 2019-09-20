@@ -53,10 +53,11 @@ def run_for_config(config):
 
     # generate graph:
     network = Network(config)
+    network_variables = network.get_all_variables()
 
     # save model
-    latest_saver = ModelSaver(os.path.join(saver_dir, 'latest_model'), 2, 'latest')
-    best_saver = ModelSaver(os.path.join(saver_dir, 'best_model'), 1, 'best')
+    latest_saver = ModelSaver(os.path.join(saver_dir, 'latest_model'), 2, 'latest', variables=network_variables)
+    best_saver = ModelSaver(os.path.join(saver_dir, 'best_model'), 1, 'best', variables=network_variables)
 
     summaries_collector = SummariesCollector(os.path.join(working_dir, 'tensorboard', model_name), model_name)
 
