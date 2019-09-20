@@ -47,6 +47,7 @@ model:
 #  decrease_learn_rate_if_static_success: 100
 #  decrease_learn_rate_if_static_success: 25
   decrease_learn_rate_if_static_success: 10
+  start_from_best_every: 5
 #  decrease_learn_rate_if_static_success: 3
 #  decrease_learn_rate_if_static_success: 2
 #  stop_training_after_learn_rate_decrease: 10

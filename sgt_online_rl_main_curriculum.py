@@ -76,6 +76,7 @@ def run_for_config(config):
 
         decrease_learn_rate_if_static_success = config['model']['decrease_learn_rate_if_static_success']
         stop_training_after_learn_rate_decrease = config['model']['stop_training_after_learn_rate_decrease']
+        start_from_best_every = config['model']['start_from_best_every']
 
         current_level = config['model']['starting_level']
         global_step = 0
@@ -122,6 +123,8 @@ def run_for_config(config):
                     no_test_improvement += 1
                     print_and_log('no improvement count {} of {}'.format(
                         no_test_improvement, decrease_learn_rate_if_static_success))
+                    if no_test_improvement % start_from_best_every == start_from_best_every - 1:
+                        best_saver.restore(sess)
                     if no_test_improvement == decrease_learn_rate_if_static_success:
                         best_saver.restore(sess)
                         if config['model']['train_levels'] == 'all-below':
