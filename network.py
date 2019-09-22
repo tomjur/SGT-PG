@@ -183,11 +183,15 @@ class PolicyNetwork:
         # compute the loss
         log_likelihood = self.prediction_distribution.log_prob(self.middle_inputs)
         mean_log_likelihood = tf.reduce_mean(log_likelihood)
-        self.prediction_loss = tf.reduce_mean(tf.expand_dims(log_likelihood, axis=-1) * self.label_inputs)
-        self.regularization_loss = tf.reduce_mean(tf.losses.get_regularization_losses(scope=self.autoregressive_net.name_prefix))
-        self.total_loss = self.prediction_loss + self.regularization_loss
 
         # optimize
+        self.prediction_loss = tf.reduce_mean(tf.expand_dims(log_likelihood, axis=-1) * self.label_inputs)
+        if self.config['policy']['regularization'] == 0.0:
+            self.regularization_loss = 0.0
+        else:
+            self.regularization_loss = tf.reduce_mean(
+                tf.losses.get_regularization_losses(scope=self.autoregressive_net.name_prefix))
+        self.total_loss = self.prediction_loss + self.regularization_loss
         self.learn_rate_variable = tf.Variable(
             self.config['policy']['learning_rate'], trainable=False, name='learn_rate_variable')
         new_learn_rate = tf.maximum(self.config['policy']['learning_rate_minimum'],
