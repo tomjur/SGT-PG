@@ -37,9 +37,10 @@ class Trainer:
             if len(valid_data) == 0:
                 continue
             starts, ends, middles, costs = zip(*random.sample(valid_data, min(self.batch_size, len(valid_data))))
-            baseline_costs = self.network.predict_value(starts, ends, level, self.sess)
-            initial_costs = np.expand_dims(np.array(costs), axis=-1)
-            costs = initial_costs - baseline_costs
+            costs = np.expand_dims(np.array(costs), axis=-1)
+            if self.config['value_function']['use_value_functions']:
+                baseline_costs = self.network.predict_value(starts, ends, level, self.sess)
+                costs = costs - baseline_costs
             summaries, prediction_loss, _ = self.network.train_policy(level, starts, ends, middles, costs, self.sess)
             if global_step % self.summaries_frequency == 0:
                 self.summaries_collector.write_train_optimization_summaries(summaries, global_step)

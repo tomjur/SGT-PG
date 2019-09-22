@@ -90,6 +90,7 @@ def run_for_config(config):
         decrease_learn_rate_if_static_success = config['model']['decrease_learn_rate_if_static_success']
         stop_training_after_learn_rate_decrease = config['model']['stop_training_after_learn_rate_decrease']
         reset_best_every = config['model']['reset_best_every']
+        use_value_functions = config['value_function']['use_value_functions']
 
         current_level = config['model']['starting_level']
         global_step = 0
@@ -102,10 +103,19 @@ def run_for_config(config):
         for cycle in range(config['general']['training_cycles']):
             print_and_log('starting cycle {}, level {}'.format(cycle, current_level))
 
-            for _ in range(config['value_function']['max_straight_updates']):
-                global_step, value_function_loss = trainer.train_value_function_at_level(current_level, global_step)
-                if value_function_loss < config['policy']['value_loss_threshold']:
-                    break
+            if use_value_functions:
+                current_coefficient = config['value_function']['rolling_avg_current_coefficient']
+                assert 0. <= current_coefficient <= 1.
+                current_avg = None
+                for _ in range(config['value_function']['max_straight_updates']):
+                    global_step, value_function_loss = trainer.train_value_function_at_level(current_level, global_step)
+                    if current_avg is None:
+                        current_avg = value_function_loss
+                    else:
+                        current_avg = (1 - current_coefficient) * current_avg
+                        current_avg += current_coefficient * value_function_loss
+                    if current_avg < config['value_function']['value_loss_threshold']:
+                        break
 
             global_step = trainer.train_policy_at_level(current_level, global_step)
 
