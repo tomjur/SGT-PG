@@ -35,6 +35,17 @@ def _get_tests(config):
         return None
 
 
+def print_policy_weights(sess, network, global_step, reason, logs_dir):
+    names = [v.name for v in network.get_all_variables()]
+    vars = sess.run(network.get_all_variables())
+    weights_log_file = os.path.join(logs_dir, '{}_{}.txt'.format(global_step, reason))
+    with open(weights_log_file, 'a') as f:
+        for i in range(len(names)):
+            f.write('var: {}{}'.format(names[i], os.linesep))
+            f.write('{}{}'.format(vars[i], os.linesep))
+        f.flush()
+
+
 def run_for_config(config):
     # set the name of the model
     model_name = config['general']['name']
@@ -50,6 +61,8 @@ def run_for_config(config):
     init_dir(saver_dir)
     init_log(log_file_path=os.path.join(saver_dir, 'log.txt'))
     copy_config(config, os.path.join(saver_dir, 'config.yml'))
+    weights_log_dir = os.path.join(saver_dir, 'weights_logs')
+    init_dir(weights_log_dir)
 
     # generate graph:
     network = Network(config)
@@ -76,12 +89,15 @@ def run_for_config(config):
 
         decrease_learn_rate_if_static_success = config['model']['decrease_learn_rate_if_static_success']
         stop_training_after_learn_rate_decrease = config['model']['stop_training_after_learn_rate_decrease']
-        start_from_best_every = config['model']['start_from_best_every']
+        reset_best_every = config['model']['reset_best_every']
 
         current_level = config['model']['starting_level']
         global_step = 0
         best_cost, best_cost_global_step = None, None
         no_test_improvement, consecutive_learn_rate_decrease = 0, 0
+
+        if config['general']['weight_printing_frequency'] > 0:
+            print_policy_weights(sess, network, global_step, 'init', weights_log_dir)
 
         for cycle in range(config['general']['training_cycles']):
             print_and_log('starting cycle {}, level {}'.format(cycle, current_level))
@@ -117,16 +133,21 @@ def run_for_config(config):
                     no_test_improvement = 0
                     consecutive_learn_rate_decrease = 0
                     best_saver.save(sess, global_step)
-
+                    if config['general']['weight_printing_frequency'] > 0:
+                        print_policy_weights(sess, network, global_step, 'best', weights_log_dir)
                 else:
                     print_and_log('new model is not the best with cost {} at step {}'.format(test_cost, global_step))
                     no_test_improvement += 1
                     print_and_log('no improvement count {} of {}'.format(
                         no_test_improvement, decrease_learn_rate_if_static_success))
-                    if no_test_improvement % start_from_best_every == start_from_best_every - 1:
+                    if reset_best_every > 0 and no_test_improvement % reset_best_every == reset_best_every - 1:
+                        # restore the model every once in a while if did not find a better solution in a while
                         best_saver.restore(sess)
                     if no_test_improvement == decrease_learn_rate_if_static_success:
-                        best_saver.restore(sess)
+                        # restore the best model
+                        if config['model']['restore_on_decrease']:
+                            best_saver.restore(sess)
+                        # decrease learn rates
                         if config['model']['train_levels'] == 'all-below':
                             levels_to_decrease_learn_rate = range(1, current_level + 1)
                         elif config['model']['train_levels'] == 'topmost':
@@ -159,6 +180,10 @@ def run_for_config(config):
                         print_and_log('trained all {} levels - needs to stop'.format(current_level))
                         break
 
+            if config['general']['weight_printing_frequency'] > 0:
+                if (cycle+1) % config['general']['weight_printing_frequency'] == 0:
+                    print_policy_weights(sess, network, global_step, 'regular', weights_log_dir)
+
             # mark in log the end of cycle
             print_and_log(os.linesep)
 
@@ -167,6 +192,9 @@ def run_for_config(config):
         test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name, str(-1))
         trainer.collect_data(config['general']['test_episodes'], current_level, trajectories_dir=test_trajectories_dir,
                              is_train=False, use_fixed_start_goal_pairs=False)
+
+        if config['general']['weight_printing_frequency'] > 0:
+            print_policy_weights(sess, network, global_step, 'final', weights_log_dir)
 
         close_log()
         return best_cost

@@ -183,8 +183,9 @@ class PolicyNetwork:
         # compute the loss
         log_likelihood = self.prediction_distribution.log_prob(self.middle_inputs)
         mean_log_likelihood = tf.reduce_mean(log_likelihood)
-        self.prediction_loss = tf.reduce_sum(tf.expand_dims(log_likelihood, axis=-1) * self.label_inputs)
-        # self.prediction_loss = tf.reduce_mean(tf.expand_dims(log_likelihood, axis=-1) * self.label_inputs)
+        self.prediction_loss = tf.reduce_mean(tf.expand_dims(log_likelihood, axis=-1) * self.label_inputs)
+        self.regularization_loss = tf.reduce_mean(tf.losses.get_regularization_losses(scope=self.autoregressive_net.name_prefix))
+        self.total_loss = self.prediction_loss + self.regularization_loss
 
         # optimize
         self.learn_rate_variable = tf.Variable(
@@ -195,13 +196,15 @@ class PolicyNetwork:
 
         self.initial_gradients_norm, self.clipped_gradients_norm, self.optimize = \
             optimize_by_loss(
-                self.prediction_loss, self.model_variables, self.learn_rate_variable,
+                self.total_loss, self.model_variables, self.learn_rate_variable,
                 self.config['policy']['gradient_limit']
             )
 
         # summaries
         merge_summaries = [
-            tf.summary.scalar('{}_predicted_cost'.format(self.autoregressive_net.name_prefix), -self.prediction_loss),
+            tf.summary.scalar('{}_prediction_loss'.format(self.autoregressive_net.name_prefix), self.prediction_loss),
+            tf.summary.scalar('{}_regularization_loss'.format(self.autoregressive_net.name_prefix), self.regularization_loss),
+            tf.summary.scalar('{}_total_loss'.format(self.autoregressive_net.name_prefix), self.total_loss),
             tf.summary.scalar('{}_learn_rate'.format(self.autoregressive_net.name_prefix), self.learn_rate_variable),
             tf.summary.scalar('{}_log-likelihood'.format(self.autoregressive_net.name_prefix), mean_log_likelihood)
         ]

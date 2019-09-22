@@ -18,34 +18,38 @@ class AutoregressiveModel:
         network_layers = self.config['policy']['layers']
         base_std = self.config['policy']['base_std']
         learn_std = self.config['policy']['learn_std']
+        regularization_scale = self.config['policy']['regularization']
 
         if middle_inputs is None:
             split_middle_inputs = None
         else:
             split_middle_inputs = tf.split(middle_inputs, self.state_size, axis=1)
 
-        # shift = tf.split((start_inputs + goal_inputs) * 0.5, self.state_size, axis=1)
-
         distributions, samples = [], []
         current_input = tf.concat((start_inputs, goal_inputs), axis=1)
+        shift = (start_inputs + goal_inputs) * 0.5
+        if self.config['policy']['include_middle_state_as_input']:
+            current_input = tf.concat((current_input, shift), axis=1)
+
+        shift = tf.split(shift, self.state_size, axis=1)
+
         for s in range(self.state_size):
             current = current_input
             for i, layer_size in enumerate(network_layers):
                 current = tf.layers.dense(
                     current, layer_size, activation=activation,
-                    name='{}_autoregressive_{}_layer_{}'.format(self.name_prefix, s, i), reuse=self._reuse
+                    name='{}_autoregressive_{}_layer_{}'.format(self.name_prefix, s, i), reuse=self._reuse,
+                    kernel_regularizer=tf.contrib.layers.l1_regularizer(scale=regularization_scale, scope=self.name_prefix)
                 )
 
             if learn_std:
                 normal_dist_parameters = tf.layers.dense(
                     current, 2, activation=None,
-                    name='{}_autoregressive_{}_normal_dist_parameters'.format(self.name_prefix, s), reuse=self._reuse
+                    name='{}_autoregressive_{}_normal_dist_parameters'.format(self.name_prefix, s), reuse=self._reuse,
+                    kernel_regularizer=tf.contrib.layers.l1_regularizer(scale=regularization_scale, scope=self.name_prefix)
                 )
                 split_normal_dist_parameters = tf.split(normal_dist_parameters, 2, axis=1)
-                # bias = tf.squeeze(tf.tanh(split_normal_dist_parameters[0]), axis=1)
-                bias = tf.squeeze(split_normal_dist_parameters[0], axis=1)
-                bias = tf.maximum(tf.minimum(bias, 1.), -1.)
-                # bias = tf.squeeze(shift[s] + split_normal_dist_parameters[0], axis=1)
+                bias = split_normal_dist_parameters[0]
                 std = split_normal_dist_parameters[1]
                 if base_std > 0.0:
                     std = tf.maximum(std, np.log(base_std))
@@ -53,13 +57,20 @@ class AutoregressiveModel:
             else:
                 normal_dist_parameters = tf.layers.dense(
                     current,  1, activation=None,
-                    name='{}_autoregressive_{}_normal_dist_parameters'.format(self.name_prefix, s), reuse=self._reuse
+                    name='{}_autoregressive_{}_normal_dist_parameters'.format(self.name_prefix, s), reuse=self._reuse,
+                    kernel_regularizer=tf.contrib.layers.l1_regularizer(scale=regularization_scale, scope=self.name_prefix)
                 )
-                # bias = tf.squeeze(shift[s] + normal_dist_parameters, axis=1)
-                # bias = tf.squeeze(tf.tanh(normal_dist_parameters), axis=1)
-                bias = tf.squeeze(normal_dist_parameters, axis=1)
-                bias = tf.maximum(tf.minimum(bias, 1.), -1.)
+                bias = normal_dist_parameters
                 std = base_std
+
+            if self.config['policy']['bias_activation_is_tanh']:
+                bias = tf.tanh(bias)
+
+            if self.config['policy']['bias_around_midpoint']:
+                bias = bias + shift[s]
+
+            bias = tf.squeeze(bias, axis=1)
+            bias = tf.maximum(tf.minimum(bias, 1.), -1.)
 
             # save the distribution
             current_prediction_distribution = tfp.distributions.TruncatedNormal(loc=bias, scale=std, low=-1., high=1.)
