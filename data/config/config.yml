@@ -38,18 +38,18 @@ model:
 #  init_from_lower_level: True
   init_from_lower_level: False
   batch_size: 20000
-  reset_best_every: 20
+  reset_best_every: 10
 #  reset_best_every: 50
-  decrease_learn_rate_if_static_success: 60
+  decrease_learn_rate_if_static_success: 30
   restore_on_decrease: True
 #  restore_on_decrease: False
   stop_training_after_learn_rate_decrease: 8
 #  gain: 'full-traj'
   gain: 'future-only'
-  repeat_train_trajectories: 10
+  repeat_train_trajectories: 100
 
 policy:
-  learning_rate: 0.00001
+  learning_rate: 0.0001
 #  learning_rate_decrease_rate: 1.
   learning_rate_decrease_rate: 0.8
   learning_rate_minimum: 0.000001
@@ -60,7 +60,7 @@ policy:
 #  activation: 'elu'
 #  activation: 'relu'
   activation: 'tanh'
-  base_std: 0.05
+  base_std: 0.5
   learn_std: False
 #  learn_std: True
   regularization: 0.0
