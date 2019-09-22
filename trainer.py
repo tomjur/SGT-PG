@@ -23,6 +23,24 @@ class Trainer:
         self.train_episodes_per_cycle = config['general']['train_episodes_per_cycle']
         self.gain = config['model']['gain']
 
+    def _reduce_mean_by_start_goal(self, starts, ends, costs):
+        # compute keys
+        keys = [(tuple(starts[i].tolist()), tuple(ends[i].tolist())) for i in range(len(starts))]
+        # put all in buckets
+        groups = {}
+        for i in range(len(costs)):
+            key = keys[i]
+            cost = costs[i]
+            if key in groups:
+                groups[key].append(cost)
+            else:
+                groups[key] = [cost]
+        # compute the mean
+        mean_groups = {key: np.mean(groups[key]) for key in groups}
+        # compute the new costs
+        new_costs = [costs[i] - mean_groups[keys[i]] for i in range(len(costs))]
+        return new_costs
+
     def train_policy_at_level(self, top_level, global_step):
         successes, accumulated_cost, dataset = self.collect_data(
             self.train_episodes_per_cycle, top_level, trajectories_dir=self._get_trajectories_dir(global_step),
@@ -37,6 +55,8 @@ class Trainer:
             if len(valid_data) == 0:
                 continue
             starts, ends, middles, costs = zip(*random.sample(valid_data, min(self.batch_size, len(valid_data))))
+            if self.config['model']['repeat_train_trajectories'] > 0:
+                costs = self._reduce_mean_by_start_goal(starts, ends, costs)
             costs = np.expand_dims(np.array(costs), axis=-1)
             if self.config['value_function']['use_value_functions']:
                 baseline_costs = self.network.predict_value(starts, ends, level, self.sess)

@@ -23,7 +23,7 @@ general:
   weight_printing_frequency: 0
 
 cost:
-  collision_cost: 200.0
+  collision_cost: 100.0
   free_cost: 1.0
   type: 'linear'
 #  type: 'huber'
@@ -31,8 +31,7 @@ cost:
   huber_loss_delta: 1.0
 
 model:
-  levels: 3
-#  levels: 5
+  levels: 1
   starting_level: 1
 #  train_levels: 'all-below'
   train_levels: 'topmost'
@@ -47,6 +46,7 @@ model:
   stop_training_after_learn_rate_decrease: 8
 #  gain: 'full-traj'
   gain: 'future-only'
+  repeat_train_trajectories: 10
 
 policy:
   learning_rate: 0.00001
@@ -56,7 +56,7 @@ policy:
   gradient_limit: 0.0
 #  include_middle_state_as_input: True
   include_middle_state_as_input: False
-  layers: [500, 500]
+  layers: [1500, 1500, 1500]
 #  activation: 'elu'
 #  activation: 'relu'
   activation: 'tanh'
@@ -71,13 +71,13 @@ policy:
   bias_around_midpoint: False
 
 value_function:
-  use_value_functions: True
-#  use_value_functions: False
+#  use_value_functions: True
+  use_value_functions: False
   learning_rate: 0.001
   learning_rate_decrease_rate: 0.8
   learning_rate_minimum: 0.00001
   gradient_limit: 0.0
-  layers: [100, 100, 100, 100]
+  layers: [100, 100, 100, 100, 100, 100]
   activation: 'elu'
 #  activation: 'relu'
 #  activation: 'tanh'
