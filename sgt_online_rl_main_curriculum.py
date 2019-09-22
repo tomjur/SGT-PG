@@ -130,7 +130,7 @@ def run_for_config(config):
                 test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name, str(global_step))
                 test_successes, test_cost, _ = trainer.collect_data(
                     config['general']['test_episodes'], current_level, trajectories_dir=test_trajectories_dir,
-                    is_train=False, use_fixed_start_goal_pairs=False)
+                    is_train=False, use_fixed_start_goal_pairs=True)
                 summaries_collector.write_test_success_summaries(sess, global_step, test_successes, test_cost)
 
                 # decide how to act next
