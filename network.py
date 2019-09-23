@@ -28,9 +28,10 @@ class Network:
             )
             self.policy_networks[level] = current_policy
             previous_policy = current_policy
-            # create value networks
-            value_network = ValueNetwork(config, level, self.start_inputs, self.goal_inputs, self.label_inputs)
-            self.value_networks[level] = value_network
+            if self.config['value_function']['use_value_functions']:
+                # create value networks
+                value_network = ValueNetwork(config, level, self.start_inputs, self.goal_inputs, self.label_inputs)
+                self.value_networks[level] = value_network
 
         # this is the prediction over the entire subtree (element at index l contains the entire trajectory prediction
         # for a tree with l levels
@@ -50,6 +51,8 @@ class Network:
         current_state = [current_policy_distribution.sample()]
         if level == 1:
             return current_state
+        if not take_mean and self.config['model']['train_levels'] == 'topmost':
+            take_mean = True
         prefix_states = self._get_policy_tree(start_inputs, current_state[0], level-1, take_mean)
         suffix_states = self._get_policy_tree(current_state[0], goal_inputs, level-1, take_mean)
         return prefix_states + current_state + suffix_states
