@@ -44,12 +44,13 @@ class PointRobotManager:
             return False
         return True
 
-    def is_linear_path_valid(self, state1, state2):
+    def get_collision_length_in_segment(self, state1, state2):
         truncated_state1, truncated_distance1 = self._truncate_state(state1)
         truncated_state2, truncated_distance2 = self._truncate_state(state2)
-        return truncated_distance1 + truncated_distance2 + self._is_linear_truncated_path_valid(truncated_state1, truncated_state2)
+        return truncated_distance1 + truncated_distance2 + self._get_collision_length_in_truncated_segment(
+            truncated_state1, truncated_state2)
 
-    def _is_linear_truncated_path_valid(self, state1, state2):
+    def _get_collision_length_in_truncated_segment(self, state1, state2):
         path = LineString([state1, state2])
         intersections = [path.intersection(polygon) for polygon in self.obstacles if path.intersects(polygon)]
         if len(intersections) == 0:
