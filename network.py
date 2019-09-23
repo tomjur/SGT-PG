@@ -63,6 +63,7 @@ class Network:
         return sess.run(tree[level], self._generate_feed_dictionary(start_inputs, goal_inputs))
 
     def predict_value(self, start_inputs, goal_inputs, level, sess):
+        assert self.config['value_function']['use_value_functions']
         assert 1 <= level <= self.levels
         return sess.run(
             self.value_networks[level].value_prediction, self._generate_feed_dictionary(start_inputs, goal_inputs)
@@ -79,6 +80,7 @@ class Network:
         return sess.run(ops, feed_dictionary)
 
     def train_value(self, level, start_inputs, goal_inputs, labels, sess):
+        assert self.config['value_function']['use_value_functions']
         assert 1 <= level <= self.levels
         feed_dictionary = self._generate_feed_dictionary(
             start_inputs, goal_inputs, labels=labels)
@@ -92,21 +94,22 @@ class Network:
         assert 1 <= level <= self.levels
         ops = [
             self.policy_networks[level].decrease_learn_rate_op,
-            self.value_networks[level].decrease_learn_rate_op,
         ]
+        if self.config['value_function']['use_value_functions']:
+            ops.append(self.value_networks[level].decrease_learn_rate_op)
         return sess.run(ops)
 
     def get_learn_rates(self, sess, level_limit=None):
         if level_limit is None:
             level_limit = self.levels
         assert 1 <= level_limit <= self.levels
-        policy_learn_rates = [
+        ops = [
             self.policy_networks[level].learn_rate_variable for level in range(1, 1+level_limit)
         ]
-        value_function_learn_rates = [
-            self.value_networks[level].learn_rate_variable for level in range(1, 1 + level_limit)
-        ]
-        ops = policy_learn_rates + value_function_learn_rates
+        if self.config['value_function']['use_value_functions']:
+            ops.extend([
+                self.value_networks[level].learn_rate_variable for level in range(1, 1 + level_limit)
+            ])
         return sess.run(ops)
 
     def init_policy_from_lower_level(self, sess, current_level):
@@ -117,8 +120,9 @@ class Network:
         model_variables = []
         for level in self.policy_networks:
             model_variables.extend(self.policy_networks[level].model_variables)
-        for level in self.value_networks:
-            model_variables.extend(self.value_networks[level].model_variables)
+        if self.config['value_function']['use_value_functions']:
+            for level in self.value_networks:
+                model_variables.extend(self.value_networks[level].model_variables)
         return model_variables
 
     def _generate_feed_dictionary(self, start_inputs, goal_inputs, middle_inputs=None, labels=None, symmetric=False):
