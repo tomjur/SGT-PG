@@ -46,7 +46,7 @@ model:
   stop_training_after_learn_rate_decrease: 8
 #  gain: 'full-traj'
   gain: 'future-only'
-  repeat_train_trajectories: 100
+  repeat_train_trajectories: 10
 
 policy:
   learning_rate: 0.0001
