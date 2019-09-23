@@ -70,10 +70,9 @@ class AutoregressiveModel:
                 bias = bias + shift[s]
 
             bias = tf.squeeze(bias, axis=1)
-            bias = tf.maximum(tf.minimum(bias, 1.), -1.)
 
             # save the distribution
-            current_prediction_distribution = tfp.distributions.TruncatedNormal(loc=bias, scale=std, low=-1., high=1.)
+            current_prediction_distribution = tfp.distributions.Normal(loc=bias, scale=std)
             distributions.append(current_prediction_distribution)
 
             # sample from the distribution

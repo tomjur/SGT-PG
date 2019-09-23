@@ -45,6 +45,11 @@ class PointRobotManager:
         return True
 
     def is_linear_path_valid(self, state1, state2):
+        truncated_state1, truncated_distance1 = self._truncate_state(state1)
+        truncated_state2, truncated_distance2 = self._truncate_state(state2)
+        return truncated_distance1 + truncated_distance2 + self._is_linear_truncated_path_valid(truncated_state1, truncated_state2)
+
+    def _is_linear_truncated_path_valid(self, state1, state2):
         path = LineString([state1, state2])
         intersections = [path.intersection(polygon) for polygon in self.obstacles if path.intersects(polygon)]
         if len(intersections) == 0:
@@ -54,6 +59,11 @@ class PointRobotManager:
             intersection_length = line_unions.length
             assert intersection_length <= path.length
             return intersection_length
+
+    def _truncate_state(self, state):
+        truncated_state = np.maximum(np.minimum(state, self.dimension_length), -self.dimension_length)
+        truncated_distance = np.linalg.norm(state - truncated_state)
+        return truncated_state, truncated_distance
 
     @staticmethod
     def _line_touch(line, obstacle):
