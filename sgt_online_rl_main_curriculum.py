@@ -126,6 +126,10 @@ def run_for_config(config):
                 latest_saver.save(sess, global_step=global_step)
 
             if cycle % config['general']['test_frequency'] == 0:
+                if trainer.check_gradients:
+                    trainer.print_gradient(
+                        config['gradient_checker']['gradient_points_to_sample'], current_level, cycle)
+
                 # do test
                 test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name, str(global_step))
                 test_successes, test_cost, _ = trainer.collect_data(

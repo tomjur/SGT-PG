@@ -47,7 +47,7 @@ model:
   repeat_train_trajectories: 10
 
 policy:
-  learning_rate: 0.001
+  learning_rate: 0.1
 #  learning_rate_decrease_rate: 1.
   learning_rate_decrease_rate: 0.8
   learning_rate_minimum: 0.000001
@@ -82,3 +82,8 @@ value_function:
   value_loss_threshold: 0.01
   rolling_avg_current_coefficient: 0.5
   max_straight_updates: 100
+
+gradient_checker:
+  enable: True
+#  enable: False
+  gradient_points_to_sample: 100
