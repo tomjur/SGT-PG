@@ -35,16 +35,16 @@ class EpisodeRunner:
         start_goal_pairs = [
             (self.game.get_free_random_state(), self.game.get_free_random_state()) for _ in range(number_of_episodes)
         ]
-        if self.config['model']['repeat_train_trajectories'] > 0:
+        return self.play_episodes(start_goal_pairs, top_level, is_train)
+
+    def play_episodes(self, start_goal_pairs, top_level, is_train):
+        if is_train and self.config['model']['repeat_train_trajectories'] > 0:
             start_goal_pairs_ = []
             for _ in range(self.config['model']['repeat_train_trajectories']):
                 for s, g in start_goal_pairs:
                     new_pair = (s.copy(), g.copy())
                     start_goal_pairs_.append(new_pair)
             start_goal_pairs = start_goal_pairs_
-        return self.play_episodes(start_goal_pairs, top_level, is_train)
-
-    def play_episodes(self, start_goal_pairs, top_level, is_train):
         starts, goals = zip(*start_goal_pairs)
         middle_states = self.policy_function(starts, goals, top_level, is_train)
         endpoints = np.array([np.array(starts)] + middle_states + [np.array(goals)])
