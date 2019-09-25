@@ -1,7 +1,7 @@
 import tensorflow as tf
+import tensorflow_probability as tfp
 import numpy as np
 
-from autoregressive_model import AutoregressiveModel
 from network_utils import optimize_by_loss, get_activation
 
 
@@ -47,8 +47,11 @@ class Network:
 
     def _get_policy_tree(self, start_inputs, goal_inputs, level, take_mean):
         current_policy_distribution = self.policy_networks[level].reuse_policy_network(
-            start_inputs, goal_inputs, take_mean)
-        current_state = [current_policy_distribution.sample()]
+            start_inputs, goal_inputs)
+        if take_mean:
+            current_state = [current_policy_distribution.mean()]
+        else:
+            current_state = [current_policy_distribution.sample()]
         if level == 1:
             return current_state
         if not take_mean and self.config['model']['train_levels'] == 'topmost':
@@ -168,7 +171,9 @@ class Network:
 class PolicyNetwork:
     def __init__(self, config, level, state_size, start_inputs, goal_inputs, middle_inputs, label_inputs, previous_policy):
         self.config = config
+        self.name_prefix = 'policy_level_{}'.format(level)
         self.state_size = state_size
+        self._reuse = False
 
         self.start_inputs = start_inputs
         self.goal_inputs = goal_inputs
@@ -176,9 +181,7 @@ class PolicyNetwork:
         self.label_inputs = label_inputs
 
         # get the prediction distribution
-        self.autoregressive_net = AutoregressiveModel(config, level, state_size)
-        self.prediction_distribution, self.model_variables = self.autoregressive_net.create_network(
-            self.start_inputs, self.goal_inputs, self.middle_inputs)
+        self.prediction_distribution, self.model_variables = self._create_network(self.start_inputs, self.goal_inputs)
 
         # to update from last level:
         if previous_policy is not None:
@@ -197,7 +200,7 @@ class PolicyNetwork:
             self.regularization_loss = 0.0
         else:
             self.regularization_loss = tf.reduce_mean(
-                tf.losses.get_regularization_losses(scope=self.autoregressive_net.name_prefix))
+                tf.losses.get_regularization_losses(scope=self.name_prefix))
         self.total_loss = self.prediction_loss + self.regularization_loss
         self.learn_rate_variable = tf.Variable(
             self.config['policy']['learning_rate'], trainable=False, name='learn_rate_variable')
@@ -213,33 +216,88 @@ class PolicyNetwork:
 
         # summaries
         merge_summaries = [
-            tf.summary.scalar('{}_prediction_loss'.format(self.autoregressive_net.name_prefix), self.prediction_loss),
-            tf.summary.scalar('{}_regularization_loss'.format(self.autoregressive_net.name_prefix), self.regularization_loss),
-            tf.summary.scalar('{}_total_loss'.format(self.autoregressive_net.name_prefix), self.total_loss),
-            tf.summary.scalar('{}_learn_rate'.format(self.autoregressive_net.name_prefix), self.learn_rate_variable),
-            tf.summary.scalar('{}_log-likelihood'.format(self.autoregressive_net.name_prefix), mean_log_likelihood)
+            tf.summary.scalar('{}_prediction_loss'.format(self.name_prefix), self.prediction_loss),
+            tf.summary.scalar('{}_regularization_loss'.format(self.name_prefix), self.regularization_loss),
+            tf.summary.scalar('{}_total_loss'.format(self.name_prefix), self.total_loss),
+            tf.summary.scalar('{}_learn_rate'.format(self.name_prefix), self.learn_rate_variable),
+            tf.summary.scalar('{}_log-likelihood'.format(self.name_prefix), mean_log_likelihood)
         ]
         if self.initial_gradients_norm is not None:
             merge_summaries.append(
                 tf.summary.scalar(
-                    '{}_initial_gradients_norm'.format(self.autoregressive_net.name_prefix),
+                    '{}_initial_gradients_norm'.format(self.name_prefix),
                     self.initial_gradients_norm
                 )
             )
         if self.clipped_gradients_norm is not None:
             merge_summaries.append(
                 tf.summary.scalar(
-                    '{}_clipped_gradients_norm'.format(self.autoregressive_net.name_prefix),
+                    '{}_clipped_gradients_norm'.format(self.name_prefix),
                     self.clipped_gradients_norm
                 )
             )
         self.optimization_summaries = tf.summary.merge(merge_summaries)
 
-    def reuse_policy_network(self, start_inputs, goal_inputs, take_mean):
-        policy_distribution, model_variables = self.autoregressive_net.create_network(
-            start_inputs, goal_inputs, take_mean=take_mean)
+    def reuse_policy_network(self, start_inputs, goal_inputs):
+        policy_distribution, model_variables = self._create_network(start_inputs, goal_inputs)
         assert len(model_variables) == 0
         return policy_distribution
+
+    def _create_network(self, start_inputs, goal_inputs):
+        variable_count = len(tf.trainable_variables())
+        activation = get_activation(self.config['policy']['activation'])
+        network_layers = self.config['policy']['layers']
+        base_std = self.config['policy']['base_std']
+        learn_std = self.config['policy']['learn_std']
+        regularization_scale = self.config['policy']['regularization']
+
+        current_input = tf.concat((start_inputs, goal_inputs), axis=1)
+        shift = (start_inputs + goal_inputs) * 0.5
+        if self.config['policy']['include_middle_state_as_input']:
+            current_input = tf.concat((current_input, shift), axis=1)
+
+        current = current_input
+        for i, layer_size in enumerate(network_layers):
+            current = tf.layers.dense(
+                current, layer_size, activation=activation,
+                name='{}_layer_{}'.format(self.name_prefix, i), reuse=self._reuse,
+                kernel_regularizer=tf.contrib.layers.l1_regularizer(scale=regularization_scale, scope=self.name_prefix)
+            )
+
+        if learn_std:
+            normal_dist_parameters = tf.layers.dense(
+                current, self.state_size * 2, activation=None,
+                name='{}_normal_dist_parameters'.format(self.name_prefix), reuse=self._reuse,
+                kernel_regularizer=tf.contrib.layers.l1_regularizer(scale=regularization_scale, scope=self.name_prefix)
+            )
+            split_normal_dist_parameters = tf.split(normal_dist_parameters, 2, axis=1)
+            bias = split_normal_dist_parameters[0]
+            std = split_normal_dist_parameters[1]
+            if base_std > 0.0:
+                std = tf.maximum(std, np.log(base_std))
+            std = tf.squeeze(tf.exp(std), axis=1)
+        else:
+            normal_dist_parameters = tf.layers.dense(
+                current,  self.state_size, activation=None,
+                name='{}_normal_dist_parameters'.format(self.name_prefix), reuse=self._reuse,
+                kernel_regularizer=tf.contrib.layers.l1_regularizer(scale=regularization_scale, scope=self.name_prefix)
+            )
+            bias = normal_dist_parameters
+            std = [base_std] * self.state_size
+
+        if self.config['policy']['bias_activation_is_tanh']:
+            bias = tf.tanh(bias)
+
+        if self.config['policy']['bias_around_midpoint']:
+            bias = bias + shift
+
+        distribution = tfp.distributions.MultivariateNormalDiag(loc=bias, scale_diag=std)
+        model_variables = tf.trainable_variables()[variable_count:]
+        if self._reuse:
+            assert len(model_variables) == 0
+        else:
+            self._reuse = True
+        return distribution, model_variables
 
 
 class ValueNetwork:
@@ -252,7 +310,7 @@ class ValueNetwork:
         self.label_inputs = label_inputs
 
         # get the prediction distribution
-        self.value_prediction, self.model_variables = self.create_network(self.start_inputs, self.goal_inputs)
+        self.value_prediction, self.model_variables = self._create_network(self.start_inputs, self.goal_inputs)
 
         # compute the loss
         self.prediction_loss = tf.losses.mean_squared_error(self.label_inputs, self.value_prediction)
@@ -292,7 +350,7 @@ class ValueNetwork:
             )
         self.optimization_summaries = tf.summary.merge(merge_summaries)
 
-    def create_network(self, start_inputs, goal_inputs):
+    def _create_network(self, start_inputs, goal_inputs):
         variable_count = len(tf.trainable_variables())
         activation = get_activation(self.config['value_function']['activation'])
         network_layers = self.config['value_function']['layers']
