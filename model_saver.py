@@ -7,9 +7,10 @@ from log_utils import print_and_log
 
 
 class ModelSaver:
-    def __init__(self, saver_dir, max_to_keep, name, variables=None):
+    def __init__(self, saver_dir, max_to_keep, name, variables=None, print_log=True):
         self.saver_dir = saver_dir
         self.name = name
+        self.print_log = print_log
         init_dir(saver_dir)
 
         if variables is None:
@@ -25,13 +26,15 @@ class ModelSaver:
     def save(self, sess, global_step):
         self.assertion_w_dictionary = self.get_assertion_vars(sess)
         self._restore_path = self._saver.save(sess, os.path.join(self.saver_dir, self.name), global_step=global_step)
-        print_and_log(
-            'saver {}: saved model from global step {} to {}'.format(self.name, global_step, self._restore_path))
+        if self.print_log:
+            print_and_log(
+                'saver {}: saved model from global step {} to {}'.format(self.name, global_step, self._restore_path))
 
     def restore(self, sess, restore_from=None):
         if restore_from is None:
             restore_from = self._restore_path
-        print_and_log('saver: {} restoring model from {}'.format(self.name, restore_from))
+        if self.print_log:
+            print_and_log('saver: {} restoring model from {}'.format(self.name, restore_from))
         self._saver.restore(sess, restore_from)
         # new_assertion_dictionary = self.get_assertion_vars(sess)
         # assert len(new_assertion_dictionary) == len(self.assertion_w_dictionary)

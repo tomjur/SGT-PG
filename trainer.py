@@ -29,7 +29,7 @@ class Trainer:
             self.gradient_output_dir = os.path.join(working_dir, 'gradient', model_name)
             init_dir(self.gradient_output_dir)
             saver_dir = os.path.join(self.gradient_output_dir, 'temp_4_gradient_print')
-            self.gradient_saver = ModelSaver(saver_dir, 1, 'gradient_checker')
+            self.gradient_saver = ModelSaver(saver_dir, 1, 'gradient_checker', print_log=False)
         else:
             self.gradient_output_dir, self.gradient_saver = None, None
 
