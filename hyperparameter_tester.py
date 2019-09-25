@@ -13,33 +13,23 @@ from sgt_online_rl_main_curriculum import run_for_config
 def _modify_config(config):
     config_copy = deepcopy(config)
 
-    # config_copy['general']['training_cycles'] = 10
-    config_copy['general']['training_cycles'] = 2000
-    config_copy['general']['test_episodes'] = 100
-    config_copy['general']['save_every_cycles'] = 20000  # don't save model
-    config_copy['general']['cycles_per_trajectory_print'] = 20000  # don't save train trajectories
+    config_copy['general']['training_cycles'] = 10000
+    config_copy['general']['train_episodes_per_cycle'] = random.choice([10, 50, 100, 500, 1000])
 
-    config_copy['cost']['type'] = random.choice(['linear'])
+    config_copy['model']['reset_best_every'] = random.choice([0, 10, 100])
+    config_copy['model']['repeat_train_trajectories'] = random.choice([10, 20, 100])
 
-    config_copy['model']['decrease_learn_rate_if_static_success'] = random.choice([5, 10, 20])
-    config_copy['model']['stop_training_after_learn_rate_decrease'] = random.choice([3, 5, 10])
+    lr_power = random.choice([2., 3., 4., 5.])
+    lr_coeff = random.choice([1., 2.5, 5.])
+    lr = lr_coeff * np.power(10, -lr_power)
+    config_copy['policy']['learning_rate'] = lr
+    config_copy['policy']['learning_rate_minimum'] = lr / 100.
+    config_copy['policy']['learning_rate_decrease_rate'] = random.choice([1.0, 0.8, 0.5, 0.1])
 
-    config_copy['policy']['learning_rate'] = random.choice([0.01, 0.001, 0.0001, ])
-    config_copy['policy']['learning_rate_decrease_rate'] = random.choice([0.95, 0.9, 0.8, 0.5, 0.1])
-
-    layers_size = random.choice([2, 5, 10, 20])
-    number_of_layers = random.choice(list(range(2, 9)))
-
-    config_copy['policy']['layers'] = [layers_size] * number_of_layers
-
-    config_copy['value_function']['learning_rate'] = random.choice([0.01, 0.001, 0.0001, ])
-    config_copy['value_function']['learning_rate_decrease_rate'] = random.choice([0.95, 0.9, 0.8, 0.5, 0.1])
-
-    layers_size = random.choice([20, 100, 400])
-    number_of_layers = random.choice(list(range(2, 9)))
-
-    config_copy['value_function']['layers'] = [layers_size] * number_of_layers
-    config_copy['value_function']['max_straight_updates'] = random.choice([10, 100, 200])
+    layers_size = random.choice([5, 10, 100])
+    layers_number = random.choice([2, 3, 4, 5])
+    config_copy['policy']['layers'] = [layers_size] * layers_number
+    config_copy['policy']['base_std'] = random.choice([0.01, 0.05, 0.1, 0.5])
 
     return config_copy
 

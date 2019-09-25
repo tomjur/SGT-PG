@@ -38,10 +38,10 @@ model:
   batch_size: 20000
   reset_best_every: 10
 #  reset_best_every: 50
-  decrease_learn_rate_if_static_success: 30
+  decrease_learn_rate_if_static_success: 1000
   restore_on_decrease: True
 #  restore_on_decrease: False
-  stop_training_after_learn_rate_decrease: 8
+  stop_training_after_learn_rate_decrease: 3
 #  gain: 'full-traj'
   gain: 'future-only'
   repeat_train_trajectories: 10
