@@ -214,13 +214,19 @@ class PolicyNetwork:
                 self.config['policy']['gradient_limit']
             )
 
+        norm = [(v, np.product([int(s) for s in v.shape])) for v in self.model_variables]
+        norm = [tf.reshape(t[0], (t[1],)) for t in norm]
+        norm = tf.concat(norm, axis=-1)
+        norm = tf.norm(norm)
+
         # summaries
         merge_summaries = [
             tf.summary.scalar('{}_prediction_loss'.format(self.name_prefix), self.prediction_loss),
             tf.summary.scalar('{}_regularization_loss'.format(self.name_prefix), self.regularization_loss),
             tf.summary.scalar('{}_total_loss'.format(self.name_prefix), self.total_loss),
             tf.summary.scalar('{}_learn_rate'.format(self.name_prefix), self.learn_rate_variable),
-            tf.summary.scalar('{}_log-likelihood'.format(self.name_prefix), mean_log_likelihood)
+            tf.summary.scalar('{}_log_likelihood'.format(self.name_prefix), mean_log_likelihood),
+            tf.summary.scalar('{}_weights_norm'.format(self.name_prefix), norm),
         ]
         if self.initial_gradients_norm is not None:
             merge_summaries.append(
