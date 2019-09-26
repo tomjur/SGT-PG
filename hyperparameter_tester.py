@@ -21,7 +21,7 @@ def _modify_config(config):
 
     lr_power = random.choice([2., 3., 4., 5.])
     lr_coeff = random.choice([1., 2.5, 5.])
-    lr = lr_coeff * np.power(10, -lr_power)
+    lr = float(lr_coeff * np.power(10, -lr_power))
     config_copy['policy']['learning_rate'] = lr
     config_copy['policy']['learning_rate_minimum'] = lr / 100.
     config_copy['policy']['learning_rate_decrease_rate'] = random.choice([1.0, 0.8, 0.5, 0.1])
