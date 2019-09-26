@@ -62,6 +62,8 @@ def run_for_config(config):
     copy_config(config, os.path.join(saver_dir, 'config.yml'))
     weights_log_dir = os.path.join(saver_dir, 'weights_logs')
     init_dir(weights_log_dir)
+    test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name)
+    init_dir(test_trajectories_dir)
 
     # generate game
     game = _get_game(config)
@@ -131,9 +133,9 @@ def run_for_config(config):
                         config['gradient_checker']['gradient_points_to_sample'], current_level, cycle)
 
                 # do test
-                test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name, str(global_step))
+                test_trajectories_file = os.path.join(test_trajectories_dir, '{}.txt'.format(global_step))
                 test_successes, test_cost, _ = trainer.collect_data(
-                    config['general']['test_episodes'], current_level, trajectories_dir=test_trajectories_dir,
+                    config['general']['test_episodes'], current_level, trajectories_file=test_trajectories_file,
                     is_train=False, use_fixed_start_goal_pairs=True)
                 summaries_collector.write_test_success_summaries(sess, global_step, test_successes, test_cost)
 
@@ -142,7 +144,7 @@ def run_for_config(config):
                 should_increase_level = False
                 print_and_log('current learn rates {}'.format(network.get_learn_rates(sess, current_level)))
                 if best_cost is None or test_cost < best_cost:
-                    print_and_log('new best success rate {} at step {}'.format(test_cost, global_step))
+                    print_and_log('new best cost {} at step {}'.format(test_cost, global_step))
                     best_cost, best_cost_global_step = test_cost, global_step
                     no_test_improvement = 0
                     consecutive_learn_rate_decrease = 0
@@ -203,9 +205,11 @@ def run_for_config(config):
 
         print_and_log('end of run best: {} from step: {}'.format(best_cost, best_cost_global_step))
         print_and_log('testing on a new set of start-goal pairs')
-        test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name, str(-1))
-        trainer.collect_data(config['general']['test_episodes'], current_level, trajectories_dir=test_trajectories_dir,
-                             is_train=False, use_fixed_start_goal_pairs=False)
+        test_trajectories_file = os.path.join(test_trajectories_dir, '-1.txt')
+        trainer.collect_data(
+            config['general']['test_episodes'], current_level, trajectories_file=test_trajectories_file, is_train=False,
+            use_fixed_start_goal_pairs=False
+        )
 
         if config['general']['weight_printing_frequency'] > 0:
             print_policy_weights(sess, network, global_step, 'final', weights_log_dir)

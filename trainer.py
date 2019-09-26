@@ -24,6 +24,9 @@ class Trainer:
         self.train_episodes_per_cycle = config['general']['train_episodes_per_cycle']
         self.gain = config['model']['gain']
 
+        self.train_trajectories_dir = os.path.join(self.working_dir, 'trajectories', self.model_name)
+        init_dir(self.train_trajectories_dir)
+
         self.check_gradients = config['gradient_checker']['enable']
         if self.check_gradients:
             self.gradient_output_dir = os.path.join(working_dir, 'gradient', model_name)
@@ -54,7 +57,7 @@ class Trainer:
 
     def train_policy_at_level(self, top_level, global_step):
         successes, accumulated_cost, dataset = self.collect_data(
-            self.train_episodes_per_cycle, top_level, trajectories_dir=self._get_trajectories_dir(global_step),
+            self.train_episodes_per_cycle, top_level, trajectories_file=self._get_trajectories_file(global_step),
             is_train=True, use_fixed_start_goal_pairs=False)
         if global_step % self.summaries_frequency == 0:
             self.summaries_collector.write_train_success_summaries(self.sess, global_step, successes, accumulated_cost)
@@ -84,7 +87,7 @@ class Trainer:
 
     def train_value_function_at_level(self, top_level, global_step):
         successes, accumulated_cost, dataset = self.collect_data(
-            self.train_episodes_per_cycle, top_level, trajectories_dir=self._get_trajectories_dir(global_step),
+            self.train_episodes_per_cycle, top_level, trajectories_file=self._get_trajectories_file(global_step),
             is_train=True, use_fixed_start_goal_pairs=False)
         if global_step % self.summaries_frequency == 0:
             self.summaries_collector.write_train_success_summaries(self.sess, global_step, successes, accumulated_cost)
@@ -104,7 +107,7 @@ class Trainer:
             global_step += 1
         return global_step, prediction_loss
 
-    def collect_data(self, count, top_level, trajectories_dir=None, is_train=True, use_fixed_start_goal_pairs=False):
+    def collect_data(self, count, top_level, trajectories_file=None, is_train=True, use_fixed_start_goal_pairs=False):
         print_and_log('collecting {} {} episodes of level {}'.format(count, 'train' if is_train else 'test', top_level))
         if use_fixed_start_goal_pairs:
             episode_results = self.episode_runner.play_fixed_episodes(top_level, is_train)
@@ -112,21 +115,16 @@ class Trainer:
             episode_results = self.episode_runner.play_random_episodes(count, top_level, is_train)
         successes, accumulated_cost, dataset, endpoints_by_path = self._process_episode_results(
             episode_results, top_level)
-        # write endpoints files
-        if trajectories_dir is not None:
-            init_dir(trajectories_dir)
-            for path_id in endpoints_by_path:
-                endpoints, is_valid_episode = endpoints_by_path[path_id]
-                # write to file if needed
-                if trajectories_dir is not None:
-                    if is_valid_episode:
-                        trajectory_filename = '{}_success.txt'.format(path_id)
-                    else:
-                        trajectory_filename = '{}_collision.txt'.format(path_id)
-
-                    with open(os.path.join(trajectories_dir, trajectory_filename), 'w') as f:
-                        for e in endpoints:
-                            f.write('{}{}'.format(str(e), os.linesep))
+        # write trajectory file
+        if trajectories_file is not None:
+            with open(trajectories_file, 'w') as f:
+                for path_id in endpoints_by_path:
+                    endpoints, is_valid_episode = endpoints_by_path[path_id]
+                    f.write('path_id_{}{}'.format(path_id, os.linesep))
+                    f.write('{}{}'.format('success' if is_valid_episode else 'collision', os.linesep))
+                    for e in endpoints:
+                        f.write('{}{}'.format(str(e), os.linesep))
+                f.flush()
         print_and_log(
             'data collection done, success rate is {}, accumulated cost is {}'.format(successes, accumulated_cost))
         return successes, accumulated_cost, dataset
@@ -165,9 +163,9 @@ class Trainer:
         accumulated_cost = np.mean(accumulated_cost)
         return successes, accumulated_cost, dataset, endpoints_by_path
 
-    def _get_trajectories_dir(self, global_step):
+    def _get_trajectories_file(self, global_step):
         if global_step % self.steps_per_trajectory_print == 0:
-            return os.path.join(self.working_dir, 'trajectories', self.model_name, str(global_step))
+            return os.path.join(self.train_trajectories_dir, '{}.txt'.format(global_step))
         else:
             return None
 
@@ -182,11 +180,13 @@ class Trainer:
     def print_gradient(self, count, level, cycle):
         if not self.check_gradients:
             return
+        results = {}
         for i in range(count):
             s, g = self.episode_runner.game.get_free_random_state(), self.episode_runner.game.get_free_random_state()
-            self.print_gradient_single_start_goal(s, g, level, cycle, i)
+            results[i] = self.get_gradient_print_info_single_start_goal(s, g, level)
+        self.print_gradient_infos(results, cycle)
 
-    def print_gradient_single_start_goal(self, start, goal, level, cycle, result_name):
+    def get_gradient_print_info_single_start_goal(self, start, goal, level):
         if not self.check_gradients:
             return
         self.gradient_saver.save(self.sess, 0)
@@ -197,16 +197,21 @@ class Trainer:
         self.gradient_saver.restore(self.sess)
         post_restore_mean = self._get_mean(start_goal_pair, level)
         assert all(np.equal(pre_train_mean, post_restore_mean))
-        gradient_output_dir = os.path.join(self.gradient_output_dir, '{}'.format(cycle))
-        init_dir(gradient_output_dir)
-        filename = os.path.join(gradient_output_dir, '{}.txt'.format(result_name))
-        with open(filename, 'w') as results_file:
-            results_file.write('{}{}'.format(start, os.linesep))
-            results_file.write('{}{}'.format(goal, os.linesep))
-            results_file.write('{}{}'.format(pre_train_mean, os.linesep))
-            results_file.write('{}{}'.format(post_train_mean, os.linesep))
-            for middle in middles:
-                results_file.write('{}{}'.format(middle, os.linesep))
+        return start, goal, pre_train_mean, post_train_mean, middles
+
+    def print_gradient_infos(self, gradient_results, cycle):
+        gradient_output_file = os.path.join(self.gradient_output_dir, '{}.txt'.format(cycle))
+        with open(gradient_output_file, 'w') as results_file:
+            for result_id in gradient_results:
+                results_file.write('id_{}{}'.format(result_id, os.linesep))
+                start, goal, pre_train_mean, post_train_mean, middles = gradient_results[result_id]
+                results_file.write('{}{}'.format(start, os.linesep))
+                results_file.write('{}{}'.format(goal, os.linesep))
+                results_file.write('{}{}'.format(pre_train_mean, os.linesep))
+                results_file.write('{}{}'.format(post_train_mean, os.linesep))
+                for middle in middles:
+                    results_file.write('{}{}'.format(middle, os.linesep))
+            results_file.flush()
 
     def _get_mean(self, start_goal_pair, level):
         test_episode_results = self.episode_runner.play_episodes(start_goal_pair, level, False)
