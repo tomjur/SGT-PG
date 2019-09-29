@@ -10,23 +10,7 @@ class EpisodeRunner:
         self.free_cost = self.config['cost']['free_cost']
         self.huber_loss_delta = self.config['cost']['huber_loss_delta']
 
-        self.fixed_start_goal_pairs = self._get_fixed_queries()
-
-    def _get_fixed_queries(self):
-        lower = self.game.lower
-        upper = self.game.upper
-        assert len(lower) == len(upper)
-        grid_states = self._rec_all_states(0)
-        grid_states = [s for s in grid_states if self.game.is_free_state(s)]
-        all_pairs = [(s1, s2) for s1 in grid_states for s2 in grid_states]
-        return all_pairs
-
-    def _rec_all_states(self, state_index):
-        s = np.linspace(self.game.lower[state_index], self.game.upper[state_index], 11)
-        if state_index == len(self.game.lower)-1:
-            return [[x] for x in s]
-        next_res = self._rec_all_states(state_index+1)
-        return [[x] + l[:] for l in next_res for x in s]
+        self.fixed_start_goal_pairs = self.game.get_fixed_start_goal_pairs()
 
     def play_fixed_episodes(self, top_level, is_train=False):
         return self.play_episodes(self.fixed_start_goal_pairs, top_level, is_train)
