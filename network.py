@@ -102,6 +102,10 @@ class Network:
             ops.append(self.value_networks[level].decrease_learn_rate_op)
         return sess.run(ops)
 
+    def decrease_base_std(self, sess, level):
+        assert 1 <= level <= self.levels
+        return sess.run(self.policy_networks[level].decrease_base_std_op)
+
     def get_learn_rates(self, sess, level_limit=None):
         if level_limit is None:
             level_limit = self.levels
@@ -113,6 +117,15 @@ class Network:
             ops.extend([
                 self.value_networks[level].learn_rate_variable for level in range(1, 1 + level_limit)
             ])
+        return sess.run(ops)
+
+    def get_base_stds(self, sess, level_limit=None):
+        if level_limit is None:
+            level_limit = self.levels
+        assert 1 <= level_limit <= self.levels
+        ops = [
+            self.policy_networks[level].base_std_variable for level in range(1, 1 + level_limit)
+        ]
         return sess.run(ops)
 
     def init_policy_from_lower_level(self, sess, current_level):
@@ -179,6 +192,11 @@ class PolicyNetwork:
         self.goal_inputs = goal_inputs
         self.middle_inputs = middle_inputs
         self.label_inputs = label_inputs
+
+        self.base_std_variable = tf.Variable(
+            self.config['policy']['base_std'], trainable=False, name='base_std_variable')
+        new_base_std = self.config['policy']['std_decrease_rate'] * self.base_std_variable
+        self.decrease_base_std_op = tf.assign(self.base_std_variable, new_base_std)
 
         # get the prediction distribution
         self.prediction_distribution, self.model_variables = self._create_network(self.start_inputs, self.goal_inputs)
@@ -253,10 +271,10 @@ class PolicyNetwork:
         variable_count = len(tf.trainable_variables())
         activation = get_activation(self.config['policy']['activation'])
         network_layers = self.config['policy']['layers']
-        base_std = self.config['policy']['base_std']
         learn_std = self.config['policy']['learn_std']
         regularization_scale = self.config['policy']['regularization']
 
+        base_std = self.base_std_variable
         current_input = tf.concat((start_inputs, goal_inputs), axis=1)
         shift = (start_inputs + goal_inputs) * 0.5
         if self.config['policy']['include_middle_state_as_input']:
@@ -278,9 +296,7 @@ class PolicyNetwork:
             )
             split_normal_dist_parameters = tf.split(normal_dist_parameters, 2, axis=1)
             bias = split_normal_dist_parameters[0]
-            std = split_normal_dist_parameters[1]
-            if base_std > 0.0:
-                std = tf.maximum(std, np.log(base_std))
+            std = split_normal_dist_parameters[1] + base_std
             std = tf.squeeze(tf.exp(std), axis=1)
         else:
             normal_dist_parameters = tf.layers.dense(

@@ -10,7 +10,7 @@ general:
 #  scenario: 'point_robot_hard_corridors'
   gpu_usage: 0.2
   write_summaries_every: 7
-  training_cycles: 10000
+  training_cycles: 50000
   train_episodes_per_cycle: 500
 #  test_episodes: 1
   test_episodes: 100
@@ -59,6 +59,8 @@ policy:
 #  activation: 'relu'
   activation: 'tanh'
   base_std: 0.05
+  decrease_std_every: 1000
+  std_decrease_rate: 0.8
   learn_std: False
 #  learn_std: True
   regularization: 0.0

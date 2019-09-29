@@ -121,6 +121,10 @@ def run_for_config(config):
 
             global_step = trainer.train_policy_at_level(current_level, global_step)
 
+            if global_step % config['policy']['decrease_std_every'] == 0:
+                network.decrease_base_std(sess, current_level)
+                print_and_log('new base stds {}'.format(network.get_base_stds(sess, current_level)))
+
             print_and_log('done training cycle {} global step {}'.format(cycle, global_step))
 
             # save every now and then
@@ -143,6 +147,7 @@ def run_for_config(config):
                 print_and_log('old cost was {} at step {}'.format(best_cost, best_cost_global_step))
                 should_increase_level = False
                 print_and_log('current learn rates {}'.format(network.get_learn_rates(sess, current_level)))
+                print_and_log('current base stds {}'.format(network.get_base_stds(sess, current_level)))
                 if best_cost is None or test_cost < best_cost:
                     print_and_log('new best cost {} at step {}'.format(test_cost, global_step))
                     best_cost, best_cost_global_step = test_cost, global_step
