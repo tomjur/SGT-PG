@@ -11,9 +11,10 @@ class PandaSceneManager:
     # for reference see
     # https://docs.google.com/document/d/10sXEhzFRSnvFcl3XxNGhnD4N2SedqwdAvK3dsihxVUA/edit#
 
-    def __init__(self, use_ui=True, robot_position=(0., 0., 0.), position_sensitivity=0.000001):
+    def __init__(self, use_ui=True, robot_position=(0., 0., 0.3), position_sensitivity=0.000001):
         self.use_ui = use_ui
         self.position_sensitivity = position_sensitivity
+        self.robot_base = robot_position
         # setup pybullet
         p.connect(p.GUI if use_ui else p.DIRECT)
         pybullet_dir = os.path.join(get_base_directory(), 'pybullet')
@@ -24,7 +25,7 @@ class PandaSceneManager:
         p.setPhysicsEngineParameter(numSubSteps=10)
         # load the robot
         self.robot = p.loadURDF(
-            os.path.join(franka_panda_dir, 'panda_arm_hand.urdf'), robot_position, useFixedBase=True)
+            os.path.join(franka_panda_dir, 'panda_arm_hand.urdf'), self.robot_base, useFixedBase=True)
         # init all joints info
         self._number_of_all_joints = p.getNumJoints(self.robot)
         joints_info = self._get_joints_properties()
@@ -48,6 +49,17 @@ class PandaSceneManager:
 
         # camera
         self.set_camera(3.5, 135, -20, [0., 0., 0.])
+
+    def add_obstacles(self, obstacles_definitions_list):
+        obstacles_definitions_list = [float(x) for x in obstacles_definitions_list]
+        z_offset = self.robot_base[2]
+        self.add_box([0.15, 0.15, z_offset - 0.15], [0.0, 0.0, z_offset / 2.])
+        line_index = 0
+        while line_index <= len(obstacles_definitions_list) - 6:
+            sides = obstacles_definitions_list[line_index:line_index + 3]
+            position = obstacles_definitions_list[line_index + 3:line_index + 6]
+            self.add_box(sides, position)
+            line_index += 6
 
     def set_camera(self, camera_distance, camera_yaw, camera_pitch, looking_at=(0., 0., 0.)):
         if self.use_ui:
@@ -150,6 +162,14 @@ class PandaSceneManager:
         self.objects.add(sphere)
         return sphere
 
+    def add_box(self, sides, base_position, mass=0.):
+        collision_box = p.createCollisionShape(p.GEOM_BOX, halfExtents=sides)
+        visual_box = p.createVisualShape(p.GEOM_BOX, halfExtents=sides)
+        box = p.createMultiBody(baseMass=mass, baseCollisionShapeIndex=collision_box,
+                                   baseVisualShapeIndex=visual_box, basePosition=base_position)
+        self.objects.add(box)
+        return box
+
     def remove_object(self, obj):
         p.removeBody(obj)
         self.objects.remove(obj)
@@ -182,9 +202,26 @@ if __name__ == '__main__':
     #     print(t)
     # print(len(trajectory))
 
-    panda_scene_manager.add_sphere(0.3, [0.4, 0.4, 0.4])
+    # panda_scene_manager.add_sphere(0.3, [0.4, 0.4, 0.4])
 
-    def go_random_start_goal(steps=200, collisions_to_stop=10):
+    scenario = 'panda_easy'
+    # scenario = 'panda_hard'
+    obstacles_definitions_list = []
+    with open(os.path.join(get_base_directory(), 'scenario_params', scenario, 'params.pkl'), 'r') as params_file:
+        obstacles_definitions_list = params_file.readlines()
+    panda_scene_manager.add_obstacles(obstacles_definitions_list)
+
+    # # easy
+    # panda_scene_manager.add_box([0.5, 0.04, 0.9], [0.75, 0.0, 0.5 + z_offset])
+    #
+    # # hard
+    # panda_scene_manager.add_box([0.5, 0.5, 0.01], [0.0, 0.8, 0.65 + z_offset])
+    # panda_scene_manager.add_box([0.5, 0.5, 0.01], [0.0, -0.8, 0.65 + z_offset])
+    #
+    # panda_scene_manager.add_box([0.5, 0.5, 0.01], [0.8, 0.0, 0.65 + z_offset])
+    # panda_scene_manager.add_box([0.5, 0.5, 0.01], [-0.8, 0.0, 0.65 + z_offset])
+
+    def go_random_start_goal(initial_camera, steps=200, collisions_to_stop=10):
         # start somewhere
         start = np.random.uniform(panda_scene_manager.joints_lower_bounds, panda_scene_manager.joints_upper_bounds)
         # try to reach the start
@@ -194,23 +231,25 @@ if __name__ == '__main__':
         (start_joints, start_velocities), is_collision = traj[-1]
         if np.linalg.norm(start - start_joints) > 0.0001:
             print('failed to reach start')
-            return
+            return 0
         if is_collision:
             print('started in collision')
-            return
+            return 0
         collision_count = 0
         target = np.random.uniform(panda_scene_manager.joints_lower_bounds, panda_scene_manager.joints_upper_bounds)
         for i in range(steps):
             new_state, is_collision = panda_scene_manager.single_step_move_all_joints_by_position(target)
-            panda_scene_manager.set_camera(3.5, i / 10, -20, [0., 0., 0.])
+            panda_scene_manager.set_camera(3.5, i + initial_camera / 10, -20, [0., 0., 0.])
             time.sleep(0.01)
             if is_collision:
                 collision_count += 1
             if collision_count == collisions_to_stop:
                 print('movement in collision')
-                return
+                return i
         print('random motion successful')
+        return steps
 
+    i = 0
     while(True):
-        go_random_start_goal()
+        i += go_random_start_goal(i)
 

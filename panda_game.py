@@ -8,6 +8,12 @@ class PandaGame(AbstractMotionPlanningGame):
     def __init__(self, config):
         AbstractMotionPlanningGame.__init__(self, config)
         self.panda_scene_manager = PandaSceneManager(use_ui=False)
+        if 'no_obs' in self.params_file:
+            obstacles_definitions_list = []
+        else:
+            with open(self.params_file, 'r') as params_file:
+                obstacles_definitions_list = params_file.readlines()
+        self.panda_scene_manager.add_obstacles(obstacles_definitions_list)
 
     def can_recover_from_failed_movement(self):
         return False
