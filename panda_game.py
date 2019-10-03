@@ -15,49 +15,79 @@ class PandaGame(AbstractMotionPlanningGame):
                 obstacles_definitions_list = params_file.readlines()
         self.panda_scene_manager.add_obstacles(obstacles_definitions_list)
 
-    def can_recover_from_failed_movement(self):
-        return False
-
     def check_terminal_segment(self, segment):
         start, end = segment
         # check the end points
         truncated_start, truncated_distance_start = self._truncate_virtual_state(start)
         truncated_end, truncated_distance_end = self._truncate_virtual_state(end)
-        truncated_segment_distance = np.linalg.norm(truncated_start - truncated_end)
 
-        is_start_free = self.is_free_state(truncated_start)
-        is_end_free = self.is_free_state(truncated_end)
-
-        # we already know it is free, but the side effect is that the robot moves to the start
         start_ = self._virtual_to_real_state(truncated_start)
         end_ = self._virtual_to_real_state(truncated_end)
 
-        # before marking start as free, teleport the robot to the start again see it is free and close:
-        if is_start_free and is_end_free:
-            self.panda_scene_manager.change_robot_joints(start_)
-            self.panda_scene_manager.simulation_step()
-            traj = self.panda_scene_manager.reach_joint_positions(start_, 100)
-            (start_joints, start_velocities), is_collision = traj[-1]
-            if not self.panda_scene_manager.is_close(start_joints, start_) or is_collision:
-                is_start_free = False
+        # partition to waypoints
+        waypoints = self._get_waypoints(start_, end_)
+        # we want to get is_goal_valid by moving in the "segment" [end_, end_]
+        waypoints.append(end_)
 
-        if not (is_start_free and is_end_free):
-            collision_length = truncated_segment_distance
-            free_length = 0.0
+        # check each waypoint
+        sum_free = 0.0
+        sum_collision = 0.0
+        is_start_valid = truncated_distance_start == 0.0
+        is_goal_valid = truncated_distance_end == 0.0
+        for waypoint_index in range(len(waypoints)-1):
+            is_start_waypoint_valid, free_length, collision_length = self._walk_small_segment(
+                waypoints[waypoint_index], waypoints[waypoint_index+1]
+            )
+            if waypoint_index == 0:
+                is_start_valid = is_start_valid and is_start_waypoint_valid
+            if waypoint_index == len(waypoints)-2:
+                is_goal_valid = is_goal_valid and is_start_waypoint_valid
+            sum_free += free_length
+            sum_collision += collision_length
+
+        is_start_free = self.is_free_state(truncated_start)
+        is_end_free = self.is_free_state(truncated_end)
+        sum_collision += truncated_distance_start + truncated_distance_end
+        return is_start_free, is_end_free, sum_free, sum_collision
+
+    def _get_waypoints(self, start, end):
+        max_step = self.panda_scene_manager.position_sensitivity * 5000
+        initial_distance = np.linalg.norm(end - start)
+        num_steps = int(np.ceil(initial_distance / max_step))
+
+        direction = end - start
+        direction = direction / np.linalg.norm(direction)
+        waypoints = [start + step*direction for step in np.linspace(0.0, initial_distance, num_steps + 1)]
+        assert self.panda_scene_manager.is_close(start, waypoints[0])
+        assert self.panda_scene_manager.is_close(end, waypoints[-1])
+        return waypoints
+
+    def _walk_small_segment(self, start, end):
+        segment_length = np.linalg.norm(start - end)
+        if not self.panda_scene_manager.is_close(start):
+            self.panda_scene_manager.change_robot_joints(start)
+            self.panda_scene_manager.simulation_step()
+            self.panda_scene_manager.reach_joint_positions(start, max_steps=100, stop_on_collision=True)
+        is_start_valid = self.panda_scene_manager.is_close(start) and not self.panda_scene_manager.is_collision()
+        if not is_start_valid:
+            # if the segment is not free
+            return is_start_valid, 0.0, segment_length
+        # this is the maximal allowed divergence
+        allowed_distance = segment_length * 1.5
+        is_free = True
+        while not self.panda_scene_manager.is_close(end):
+            (current_position, _), is_collision = self.panda_scene_manager.single_step_move_all_joints_by_position(end)
+            current_position_ = np.array(current_position)
+            if is_collision or np.linalg.norm(current_position_ - end) > allowed_distance:
+                is_free = False
+                break
+        if is_free:
+            free_length = segment_length
+            collision_length = 0.0
         else:
-            traj = self.panda_scene_manager.reach_joint_positions(end_, 100)
-            last_free_waypoint_ = traj[-1][0][0]
-            # last_free_waypoint_ = self.panda_scene_manager.slow_reach_joint_positions(end_)
-            last_free_waypoint = self._real_to_virtual_state(last_free_waypoint_)
-            if self.panda_scene_manager.is_close(last_free_waypoint_, end_):
-                collision_length = 0.0
-            else:
-                collision_length = np.linalg.norm(last_free_waypoint - truncated_end)
-            free_length = np.linalg.norm(last_free_waypoint - truncated_start)
-        is_start_free = is_start_free and truncated_distance_start == 0.
-        is_end_free = is_end_free and truncated_distance_end == 0.
-        collision_length += truncated_distance_start + truncated_distance_end
-        return is_start_free, is_end_free, free_length, collision_length
+            free_length = 0.0
+            collision_length = segment_length
+        return is_start_valid, free_length, collision_length
 
     @staticmethod
     def _truncate_virtual_state(state):

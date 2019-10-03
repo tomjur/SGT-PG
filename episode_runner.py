@@ -37,24 +37,15 @@ class EpisodeRunner:
         return {path_id: self._process_endpoints(episode, top_level) for path_id, episode in enumerate(endpoints)}
 
     def _process_endpoints(self, endpoints, top_level):
-        can_recover = self.game.can_recover_from_failed_movement()
-
         is_valid_episode = True
         base_costs = {}
         splits = {}
         # compute base costs:
-        compute_cost = True
         for i in range(len(endpoints)-1):
             start, end = endpoints[i], endpoints[i+1]
-            if compute_cost:
-                cost, is_start_valid, is_goal_valid, is_segment_valid = self._get_cost(start, end)
-                if not can_recover and not is_segment_valid:
-                    # the agent can't teleport to new states, so the rest of the plan would have to be ignored
-                    compute_cost = False
-                base_costs[(i, i+1)] = (start, end, is_start_valid, is_goal_valid, cost)
-                is_valid_episode = is_valid_episode and is_segment_valid
-            else:
-                base_costs[(i, i + 1)] = (start, end, None, None, None)
+            cost, is_start_valid, is_goal_valid, is_segment_valid = self._get_cost(start, end)
+            base_costs[(i, i+1)] = (start, end, is_start_valid, is_goal_valid, cost)
+            is_valid_episode = is_valid_episode and is_segment_valid
 
         # compute for the upper levels
         for l in range(1, top_level + 1):
@@ -77,12 +68,6 @@ class EpisodeRunner:
                     is_goal_valid = second_is_goal_valid
                     cost = first_cost + second_cost
                 splits[l][(start_index, end_index)] = (start, end, middle, is_start_valid, is_goal_valid, cost)
-
-            # clean all the bad segments if can't recover and the episode failed
-            if not can_recover and not compute_cost:
-                base_costs = {t: base_costs[t] for t in base_costs if base_costs[t][-1] is not None}
-                for l in range(1, top_level + 1):
-                    splits[l] = {t: splits[l][t] for t in splits[l] if splits[l][t][-1] is not None}
 
         return endpoints, splits, base_costs, is_valid_episode
 

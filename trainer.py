@@ -27,8 +27,6 @@ class Trainer:
         self.train_trajectories_dir = os.path.join(self.working_dir, 'trajectories', self.model_name)
         init_dir(self.train_trajectories_dir)
 
-        self._collect_cost = self.episode_runner.game.can_recover_from_failed_movement()
-
         self.check_gradients = config['gradient_checker']['enable']
         if self.check_gradients:
             self.gradient_output_dir = os.path.join(working_dir, 'gradient', model_name)
@@ -144,12 +142,8 @@ class Trainer:
             # log collision
             successes.append(is_valid_episode)
 
-            if self._collect_cost:
-                # total cost:
-                total_cost = splits[top_level][(0, len(endpoints) - 1)][-1]
-            else:
-                # if the episode can fail in the middle there is no point in the total cost...
-                total_cost = is_valid_episode * -1.
+            # total cost:
+            total_cost = splits[top_level][(0, len(endpoints) - 1)][-1]
             accumulated_cost.append(total_cost)
 
             # extend the dataset

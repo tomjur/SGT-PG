@@ -15,10 +15,6 @@ class PointRobotGame(AbstractMotionPlanningGame):
                 obstacles_definitions_list = pickle.load(params_file)
         self.point_robot_manager = PointRobotManager(obstacles_definitions_list)
 
-    def can_recover_from_failed_movement(self):
-        # point robot can teleport between states
-        return True
-
     def check_terminal_segment(self, segment):
         is_start_free = self.is_free_state(segment[0])
         is_goal_free = self.is_free_state(segment[1])

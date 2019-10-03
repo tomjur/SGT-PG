@@ -76,9 +76,6 @@ class AbstractMotionPlanningGame:
         self.params_file = os.path.join(
             get_base_directory(), 'scenario_params', config['general']['scenario'], 'params.pkl')
 
-    def can_recover_from_failed_movement(self):
-        return False
-
     def get_valid_states(self, states):
         return np.maximum(self.lower, np.minimum(self.upper, states))
 

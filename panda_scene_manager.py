@@ -138,35 +138,6 @@ class PandaSceneManager:
             trajectory.append(self.single_step_move_all_joints_by_position(target_position))
         return trajectory
 
-    def slow_reach_joint_positions(self, target_position):
-        current_position = self.get_robot_state()[0]
-
-        current_position_ = np.array(current_position)
-        start_position_ = current_position_.copy()
-        target_position_ = np.array(target_position)
-        waypoints = self._get_waypoints(current_position_, target_position_)
-        assert self.is_close(start_position_, waypoints[0])
-        assert self.is_close(target_position_, waypoints[-1])
-
-        for waypoint_index, waypoint in enumerate(waypoints):
-            allowed_distance = np.linalg.norm(current_position_ - waypoint) * 1.5
-            while not self.is_close(current_position_, waypoint):
-                (current_position, _), is_collision = self.single_step_move_all_joints_by_position(waypoint)
-                current_position_ = np.array(current_position)
-                if is_collision or np.linalg.norm(current_position_ - waypoint) > allowed_distance:
-                    # failure is either when the robot diverges, or a collision occurs
-                    return waypoints[waypoint_index-1]
-        return current_position_
-
-    def _get_waypoints(self, start, end):
-        max_step = self.position_sensitivity * 5000
-        initial_distance = np.linalg.norm(end - start)
-        num_steps = int(np.ceil(initial_distance / max_step))
-
-        direction = end - start
-        direction = direction / np.linalg.norm(direction)
-        return [start + step*direction for step in np.linspace(0.0, initial_distance, num_steps + 1)]
-
     def _get_joints_properties(self):
         joints_info = [p.getJointInfo(self.robot, i) for i in range(self._number_of_all_joints)]
         joints_info = [(t[1], t[2], t[8], t[9]) for t in joints_info]
@@ -203,8 +174,10 @@ class PandaSceneManager:
         p.removeBody(obj)
         self.objects.remove(obj)
 
-    def is_close(self, state1, state2):
-        return np.linalg.norm(state1 - state2) < self.position_sensitivity
+    def is_close(self, state1, state2=None):
+        if state2 is None:
+            state2 = self.get_robot_state()[0]
+        return np.linalg.norm(np.array(state1) - np.array(state2)) < self.position_sensitivity
 
 if __name__ == '__main__':
     panda_scene_manager = PandaSceneManager(use_ui=False)
