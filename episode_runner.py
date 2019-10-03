@@ -34,16 +34,36 @@ class EpisodeRunner:
         endpoints = np.array([np.array(starts)] + middle_states + [np.array(goals)])
         endpoints = np.swapaxes(endpoints, 0, 1)
         endpoints = [np.squeeze(e, axis=0) for e in np.vsplit(endpoints, len(endpoints))]
-        return {path_id: self._process_endpoints(episode, top_level) for path_id, episode in enumerate(endpoints)}
 
-    def _process_endpoints(self, endpoints, top_level):
+        results = {}
+        all_costs_queries = {}
+        for path_id, episode in enumerate(endpoints):
+            results[path_id] = episode
+            cost_queries = [(i, episode[i], episode[i+1]) for i in range(len(episode)-1)]
+            all_costs_queries[path_id] = cost_queries
+
+        all_cost_responses = self.game.check_terminal_segments(all_costs_queries)
+
+        for path_id in results:
+            episode = results[path_id]
+            episode_cost_responses = all_cost_responses[path_id]
+            results[path_id] = self._process_endpoints(episode, episode_cost_responses, top_level)
+        return results
+
+    def _process_endpoints(self, endpoints, cost_responses, top_level):
         is_valid_episode = True
         base_costs = {}
         splits = {}
+
         # compute base costs:
         for i in range(len(endpoints)-1):
             start, end = endpoints[i], endpoints[i+1]
-            cost, is_start_valid, is_goal_valid, is_segment_valid = self._get_cost(start, end)
+            cost_response = cost_responses[i]
+            assert all(np.equal(start, cost_response[0]))
+            assert all(np.equal(end, cost_response[1]))
+            is_start_valid, is_goal_valid, free_length, collision_length = cost_response[2:]
+            is_segment_valid = collision_length == 0.0
+            cost = self._get_cost(free_length, collision_length)
             base_costs[(i, i+1)] = (start, end, is_start_valid, is_goal_valid, cost)
             is_valid_episode = is_valid_episode and is_segment_valid
 
@@ -71,15 +91,11 @@ class EpisodeRunner:
 
         return endpoints, splits, base_costs, is_valid_episode
 
-    def _get_cost(self, start, goal):
-        is_start_valid, is_goal_valid, segment_free, segment_collision = self.game.check_terminal_segment((start, goal))
-        is_segment_valid = segment_collision == 0.0
-
+    def _get_cost(self, segment_free, segment_collision):
         free_cost = self._get_distance_cost(segment_free) * self.free_cost
         collision_cost = self._get_distance_cost(segment_collision) * self.collision_cost
         cost = free_cost + collision_cost
-
-        return cost, is_start_valid, is_goal_valid, is_segment_valid
+        return cost
 
     def _get_distance_cost(self, distance):
         if self.config['cost']['type'] == 'linear':

@@ -13,7 +13,7 @@ general:
   write_summaries_every: 7
   training_cycles: 50000
 #  train_episodes_per_cycle: 500
-  train_episodes_per_cycle: 2
+  train_episodes_per_cycle: 10
 #  test_episodes: 1
   test_episodes: 100
   save_every_cycles: 1000000
@@ -46,8 +46,7 @@ model:
   stop_training_after_learn_rate_decrease: 3
 #  gain: 'full-traj'
   gain: 'future-only'
-  repeat_train_trajectories: 3
-#  repeat_train_trajectories: 10
+  repeat_train_trajectories: 10
 
 policy:
   learning_rate: 0.05

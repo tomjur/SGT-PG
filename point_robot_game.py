@@ -8,18 +8,28 @@ from rl_interface import AbstractMotionPlanningGame
 class PointRobotGame(AbstractMotionPlanningGame):
     def __init__(self, config):
         AbstractMotionPlanningGame.__init__(self, config)
-        if 'no_obs' in self.params_file:
+        params_file = self.get_params_from_config(config)
+        if 'no_obs' in params_file:
             obstacles_definitions_list = []
         else:
-            with open(self.params_file, 'rb') as params_file:
-                obstacles_definitions_list = pickle.load(params_file)
+            with open(params_file, 'rb') as f:
+                obstacles_definitions_list = pickle.load(f)
         self.point_robot_manager = PointRobotManager(obstacles_definitions_list)
 
-    def check_terminal_segment(self, segment):
-        is_start_free = self.is_free_state(segment[0])
-        is_goal_free = self.is_free_state(segment[1])
-        free_length, collision_length = self.point_robot_manager.get_collision_length_in_segment(segment[0], segment[1])
-        return is_start_free, is_goal_free, free_length, collision_length
+    def check_terminal_segments(self, cost_queries):
+        results = {}
+        for path_id in cost_queries:
+            results[path_id] = {}
+            for i, start, goal in cost_queries[path_id]:
+                query_results = self._check_terminal_segment(start, goal)
+                results[path_id][i] = query_results
+        return results
+
+    def _check_terminal_segment(self, start, goal):
+        is_start_free = self.is_free_state(start)
+        is_goal_free = self.is_free_state(goal)
+        free_length, collision_length = self.point_robot_manager.get_collision_length_in_segment(start, goal)
+        return start, goal, is_start_free, is_goal_free, free_length, collision_length
 
     def is_free_state(self, state):
         return self.point_robot_manager.is_free(state)

@@ -16,18 +16,18 @@ class PandaSceneManager:
         self.position_sensitivity = position_sensitivity
         self.robot_base = robot_position
         # setup pybullet
-        p.connect(p.GUI if use_ui else p.DIRECT)
+        self.my_id = p.connect(p.GUI if use_ui else p.DIRECT)
         pybullet_dir = os.path.join(get_base_directory(), 'pybullet')
         franka_panda_dir = os.path.join(pybullet_dir, 'franka_panda')
-        p.loadURDF(os.path.join(pybullet_dir, 'plane.urdf'))
-        p.setRealTimeSimulation(0)
-        p.setPhysicsEngineParameter(numSolverIterations=300)
-        p.setPhysicsEngineParameter(numSubSteps=10)
+        p.loadURDF(os.path.join(pybullet_dir, 'plane.urdf'), physicsClientId=self.my_id)
+        p.setRealTimeSimulation(0, physicsClientId=self.my_id)
+        p.setPhysicsEngineParameter(numSolverIterations=300, physicsClientId=self.my_id)
+        p.setPhysicsEngineParameter(numSubSteps=10, physicsClientId=self.my_id)
         # load the robot
-        self.robot = p.loadURDF(
-            os.path.join(franka_panda_dir, 'panda_arm_hand.urdf'), self.robot_base, useFixedBase=True)
+        self.robot = p.loadURDF(os.path.join(franka_panda_dir, 'panda_arm_hand.urdf'), self.robot_base,
+                                useFixedBase=True, physicsClientId=self.my_id)
         # init all joints info
-        self._number_of_all_joints = p.getNumJoints(self.robot)
+        self._number_of_all_joints = p.getNumJoints(self.robot, physicsClientId=self.my_id)
         joints_info = self._get_joints_properties()
         self._joint_names, self._joint_types, self._joints_lower_bounds, self._joints_upper_bounds = zip(*joints_info)
         # externalize only controlable joints
@@ -63,12 +63,12 @@ class PandaSceneManager:
 
     def set_camera(self, camera_distance, camera_yaw, camera_pitch, looking_at=(0., 0., 0.)):
         if self.use_ui:
-            p.resetDebugVisualizerCamera(camera_distance, camera_yaw, camera_pitch, looking_at)
+            p.resetDebugVisualizerCamera(camera_distance, camera_yaw, camera_pitch, looking_at, physicsClientId=self.my_id)
 
     def get_link_poses(self):
         link_poses = []
         for i in range(self._number_of_all_joints):
-            state = p.getLinkState(self.robot, i)
+            state = p.getLinkState(self.robot, i, physicsClientId=self.my_id)
             position = state[4]
             orientation = state[5]
             link_poses.append((position, orientation))
@@ -81,11 +81,11 @@ class PandaSceneManager:
         assert len(joints) == len(self._external_to_internal_joint_index)
         for virtual_joint_index in range(len(joints)):
             joint_index = self._external_to_internal_joint_index[virtual_joint_index]
-            p.resetJointState(self.robot, joint_index, targetValue=joints[virtual_joint_index], targetVelocity=0.0)
+            p.resetJointState(self.robot, joint_index, targetValue=joints[virtual_joint_index], targetVelocity=0.0, physicsClientId=self.my_id)
 
     def get_robot_state(self):
         joint_position_velocity_pairs = [
-            (t[0], t[1]) for t in p.getJointStates(self.robot, self._external_to_internal_joint_index)
+            (t[0], t[1]) for t in p.getJointStates(self.robot, self._external_to_internal_joint_index, physicsClientId=self.my_id)
         ]
         return list(zip(*joint_position_velocity_pairs))
 
@@ -96,13 +96,13 @@ class PandaSceneManager:
             self.single_step_move_all_joints_by_position(target_positions)
         else:
             real_joint = self._external_to_internal_joint_index[joint_index]
-            p.setJointMotorControl2(self.robot, real_joint, p.POSITION_CONTROL, targetPosition=target_position, force=1.)
+            p.setJointMotorControl2(self.robot, real_joint, p.POSITION_CONTROL, targetPosition=target_position, force=1., physicsClientId=self.my_id)
         return self.simulation_step()
 
     def single_step_move_all_joints_by_position(self, target_positions):
         assert len(target_positions) == self.number_of_joints
         p.setJointMotorControlArray(
-            self.robot, self._external_to_internal_joint_index, p.POSITION_CONTROL, targetPositions=target_positions, forces=[1.] * self.number_of_joints)
+            self.robot, self._external_to_internal_joint_index, p.POSITION_CONTROL, targetPositions=target_positions, forces=[1.] * self.number_of_joints, physicsClientId=self.my_id)
         return self.simulation_step()
 
     def reach_joint_position(
@@ -139,39 +139,39 @@ class PandaSceneManager:
         return trajectory
 
     def _get_joints_properties(self):
-        joints_info = [p.getJointInfo(self.robot, i) for i in range(self._number_of_all_joints)]
+        joints_info = [p.getJointInfo(self.robot, i, physicsClientId=self.my_id) for i in range(self._number_of_all_joints)]
         joints_info = [(t[1], t[2], t[8], t[9]) for t in joints_info]
         return joints_info
 
     def simulation_step(self):
         # note: if we want to activate gravity this is the place:
         # p.setGravity(0, 0, -10.)
-        p.stepSimulation()
+        p.stepSimulation(physicsClientId=self.my_id)
         return self.get_robot_state(), self.is_collision()
 
     def is_collision(self):
         return len([
-            contact_point for contact_point in p.getContactPoints(self.robot) if contact_point[8] < 0.0
+            contact_point for contact_point in p.getContactPoints(self.robot, physicsClientId=self.my_id) if contact_point[8] < 0.0
         ]) > 0
 
     def add_sphere(self, radius, base_position, mass=0.):
-        collision_sphere = p.createCollisionShape(p.GEOM_SPHERE, radius=radius)
-        visual_sphere = p.createVisualShape(p.GEOM_SPHERE, radius=radius)
+        collision_sphere = p.createCollisionShape(p.GEOM_SPHERE, radius=radius, physicsClientId=self.my_id)
+        visual_sphere = p.createVisualShape(p.GEOM_SPHERE, radius=radius, physicsClientId=self.my_id)
         sphere = p.createMultiBody(baseMass=mass, baseCollisionShapeIndex=collision_sphere,
-                                   baseVisualShapeIndex=visual_sphere, basePosition=base_position)
+                                   baseVisualShapeIndex=visual_sphere, basePosition=base_position, physicsClientId=self.my_id)
         self.objects.add(sphere)
         return sphere
 
     def add_box(self, sides, base_position, mass=0.):
-        collision_box = p.createCollisionShape(p.GEOM_BOX, halfExtents=sides)
-        visual_box = p.createVisualShape(p.GEOM_BOX, halfExtents=sides)
+        collision_box = p.createCollisionShape(p.GEOM_BOX, halfExtents=sides, physicsClientId=self.my_id)
+        visual_box = p.createVisualShape(p.GEOM_BOX, halfExtents=sides, physicsClientId=self.my_id)
         box = p.createMultiBody(baseMass=mass, baseCollisionShapeIndex=collision_box,
-                                   baseVisualShapeIndex=visual_box, basePosition=base_position)
+                                   baseVisualShapeIndex=visual_box, basePosition=base_position, physicsClientId=self.my_id)
         self.objects.add(box)
         return box
 
     def remove_object(self, obj):
-        p.removeBody(obj)
+        p.removeBody(obj, physicsClientId=self.my_id)
         self.objects.remove(obj)
 
     def is_close(self, state1, state2=None):

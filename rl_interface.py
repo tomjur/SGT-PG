@@ -73,8 +73,10 @@ class AbstractMotionPlanningGame:
         self.lower = np.array(lower)
         self.upper = np.array(upper)
         self.state_size = len(lower)
-        self.params_file = os.path.join(
-            get_base_directory(), 'scenario_params', config['general']['scenario'], 'params.pkl')
+
+    @staticmethod
+    def get_params_from_config(config):
+        return os.path.join(get_base_directory(), 'scenario_params', config['general']['scenario'], 'params.pkl')
 
     def get_valid_states(self, states):
         return np.maximum(self.lower, np.minimum(self.upper, states))
@@ -88,7 +90,7 @@ class AbstractMotionPlanningGame:
             if self.is_free_state(state):
                 return state
 
-    def check_terminal_segment(self, segment):
+    def check_terminal_segments(self, segments):
         assert False
 
     def is_free_state(self, state):
