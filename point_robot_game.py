@@ -22,8 +22,8 @@ class PointRobotGame(AbstractMotionPlanningGame):
     def check_terminal_segment(self, segment):
         is_start_free = self.is_free_state(segment[0])
         is_goal_free = self.is_free_state(segment[1])
-        collision_length = self.point_robot_manager.get_collision_length_in_segment(segment[0], segment[1])
-        return is_start_free, is_goal_free, collision_length
+        free_length, collision_length = self.point_robot_manager.get_collision_length_in_segment(segment[0], segment[1])
+        return is_start_free, is_goal_free, free_length, collision_length
 
     def is_free_state(self, state):
         return self.point_robot_manager.is_free(state)

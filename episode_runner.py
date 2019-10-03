@@ -78,20 +78,17 @@ class EpisodeRunner:
                     cost = first_cost + second_cost
                 splits[l][(start_index, end_index)] = (start, end, middle, is_start_valid, is_goal_valid, cost)
 
-            # clean all the bad segments
-            if not can_recover:
-                base_costs = {base_costs[t] for t in base_costs if base_costs[t][-1] is not None}
+            # clean all the bad segments if can't recover and the episode failed
+            if not can_recover and not compute_cost:
+                base_costs = {t: base_costs[t] for t in base_costs if base_costs[t][-1] is not None}
                 for l in range(1, top_level + 1):
-                    splits[l] = {splits[l][t] for t in splits[l] if splits[l][t][-1] is not None}
+                    splits[l] = {t: splits[l][t] for t in splits[l] if splits[l][t][-1] is not None}
 
         return endpoints, splits, base_costs, is_valid_episode
 
     def _get_cost(self, start, goal):
-        distance = np.linalg.norm(start - goal)
-        is_start_valid, is_goal_valid, segment_collision = self.game.check_terminal_segment((start, goal))
+        is_start_valid, is_goal_valid, segment_free, segment_collision = self.game.check_terminal_segment((start, goal))
         is_segment_valid = segment_collision == 0.0
-
-        segment_free = np.maximum(distance - segment_collision, 0.0)
 
         free_cost = self._get_distance_cost(segment_free) * self.free_cost
         collision_cost = self._get_distance_cost(segment_collision) * self.collision_cost

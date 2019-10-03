@@ -18,6 +18,9 @@ def _get_game(config):
     if 'point_robot' in config['general']['scenario']:
         from point_robot_game import PointRobotGame
         return PointRobotGame(config)
+    if 'panda' in config['general']['scenario']:
+        from panda_game import PandaGame
+        return PandaGame(config)
     else:
         assert False
 
@@ -119,7 +122,12 @@ def run_for_config(config):
                     if current_avg < config['value_function']['value_loss_threshold']:
                         break
 
-            global_step = trainer.train_policy_at_level(current_level, global_step)
+            new_global_step = trainer.train_policy_at_level(current_level, global_step)
+            if new_global_step == global_step:
+                print_and_log('no data found in training cycle {} global step still {}'.format(cycle, global_step))
+                continue
+            else:
+                global_step = new_global_step
 
             if (global_step - first_global_step_of_level) % config['policy']['decrease_std_every'] == 0:
                 network.decrease_base_std(sess, current_level)

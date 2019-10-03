@@ -47,8 +47,12 @@ class PointRobotManager:
     def get_collision_length_in_segment(self, state1, state2):
         truncated_state1, truncated_distance1 = self._truncate_state(state1)
         truncated_state2, truncated_distance2 = self._truncate_state(state2)
-        return truncated_distance1 + truncated_distance2 + self._get_collision_length_in_truncated_segment(
+        truncated_segment_length = np.linalg.norm(truncated_state2 - truncated_state1)
+        truncated_segment_collision = self._get_collision_length_in_truncated_segment(
             truncated_state1, truncated_state2)
+        free_length = truncated_segment_length - truncated_segment_collision
+        collision_length = truncated_segment_collision + truncated_distance1 + truncated_distance2
+        return free_length, collision_length
 
     def _get_collision_length_in_truncated_segment(self, state1, state2):
         path = LineString([state1, state2])
