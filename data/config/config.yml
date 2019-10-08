@@ -24,7 +24,9 @@ general:
 
 cost:
   collision_cost: 20.0
+  is_constant_collision_cost: False
   free_cost: 1.0
+  is_constant_free_cost: False
   type: 'linear'
 #  type: 'huber'
 #  type: 'square'

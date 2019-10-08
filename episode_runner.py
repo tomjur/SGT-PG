@@ -7,7 +7,9 @@ class EpisodeRunner:
         self.game = game
         self.policy_function = policy_function
         self.collision_cost = self.config['cost']['collision_cost']
+        self.is_constant_collision_cost = self.config['cost']['is_constant_collision_cost']
         self.free_cost = self.config['cost']['free_cost']
+        self.is_constant_free_cost = self.config['cost']['is_constant_free_cost']
         self.huber_loss_delta = self.config['cost']['huber_loss_delta']
 
         self.fixed_start_goal_pairs = self.game.get_fixed_start_goal_pairs()
@@ -92,10 +94,25 @@ class EpisodeRunner:
         return endpoints, splits, base_costs, is_valid_episode
 
     def _get_cost(self, segment_free, segment_collision):
-        free_cost = self._get_distance_cost(segment_free) * self.free_cost
-        collision_cost = self._get_distance_cost(segment_collision) * self.collision_cost
-        cost = free_cost + collision_cost
-        return cost
+        if segment_collision == 0.0:
+            # segment is collision free
+            if self.is_constant_free_cost:
+                # pay a fixed cost for not being in collision
+                return self.free_cost
+            else:
+                # pay a distance relative cost for the free segment
+                return self._get_distance_cost(segment_free) * self.free_cost
+        else:
+            # segment in collision
+            if self.is_constant_collision_cost:
+                # pay a fixed cost for being in collision
+                return self.collision_cost
+            else:
+                # pay a distance relative cost for the free segment and for in-collision segments
+                free_cost = self._get_distance_cost(segment_free) * self.free_cost
+                collision_cost = self._get_distance_cost(segment_collision) * self.collision_cost
+                cost = free_cost + collision_cost
+                return cost
 
     def _get_distance_cost(self, distance):
         if self.config['cost']['type'] == 'linear':
