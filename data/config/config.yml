@@ -5,15 +5,15 @@ general:
 #  scenario: 'point_robot_easy2_transposed'
 #  scenario: 'point_robot_box_0.2'
 #  scenario: 'point_robot_box_0.8'
-#  scenario: 'point_robot_box_1.6'
+  scenario: 'point_robot_box_1.6'
 #  scenario: 'point_robot_corridor'
 #  scenario: 'point_robot_hard_corridors'
-  scenario: panda_no_obs
+#  scenario: panda_no_obs
   gpu_usage: 0.2
   write_summaries_every: 7
-  training_cycles: 50000
-#  train_episodes_per_cycle: 500
-  train_episodes_per_cycle: 10
+  training_cycles: 30000
+  train_episodes_per_cycle: 500
+#  train_episodes_per_cycle: 10
 #  test_episodes: 1
   test_episodes: 100
   save_every_cycles: 1000000
@@ -35,8 +35,8 @@ model:
   starting_level: 1
 #  train_levels: 'all-below'
   train_levels: 'topmost'
-#  init_from_lower_level: True
-  init_from_lower_level: False
+  init_from_lower_level: True
+#  init_from_lower_level: False
   batch_size: 20000
   reset_best_every: 0
 #  reset_best_every: 50
@@ -49,7 +49,7 @@ model:
   repeat_train_trajectories: 10
 
 policy:
-  learning_rate: 0.05
+  learning_rate: 0.01
   learning_rate_decrease_rate: 1.
 #  learning_rate_decrease_rate: 0.8
   learning_rate_minimum: 0.0005
@@ -57,6 +57,7 @@ policy:
 #  include_middle_state_as_input: True
   include_middle_state_as_input: False
   layers: [5, 5]
+#  layers: [10, 10, 10]
 #  activation: 'elu'
 #  activation: 'relu'
   activation: 'tanh'
