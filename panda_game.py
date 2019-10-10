@@ -1,6 +1,6 @@
 import numpy as np
 import multiprocessing
-import Queue
+import queue
 import time
 
 from panda_scene_manager import PandaSceneManager
@@ -139,7 +139,7 @@ class GameWorker(multiprocessing.Process):
                 ]
                 response = (path_id, path_cost_results)
                 self.results_queue.put(response)
-            except Queue.Empty:
+            except queue.Empty:
                 time.sleep(1.0)
 
     def check_terminal_segment(self, start, end):
