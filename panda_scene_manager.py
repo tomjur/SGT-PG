@@ -4,7 +4,7 @@ import os
 import pybullet as p
 import numpy as np
 
-from docker_path_helper import get_base_directory
+from path_helper import get_base_directory
 
 
 class PandaSceneManager:

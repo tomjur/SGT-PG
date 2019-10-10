@@ -1,5 +1,5 @@
 import numpy as np
-import cPickle as pickle
+import pickle
 
 from point_robot_manager import PointRobotManager
 from rl_interface import AbstractMotionPlanningGame

@@ -9,7 +9,7 @@ from episode_runner import EpisodeRunner
 from model_saver import ModelSaver
 from network import Network
 from summaries_collector import SummariesCollector
-from docker_path_helper import get_base_directory, init_dir
+from path_helper import get_base_directory, init_dir
 from log_utils import init_log, print_and_log, close_log
 from trainer import Trainer
 
@@ -80,9 +80,9 @@ def run_for_config(config):
 
     summaries_collector = SummariesCollector(os.path.join(working_dir, 'tensorboard', model_name), model_name)
 
-    with tf.Session(
-            config=tf.ConfigProto(
-                gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=config['general']['gpu_usage'])
+    with tf.compat.v1.Session(
+            config=tf.compat.v1.ConfigProto(
+                gpu_options=tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=config['general']['gpu_usage'])
             )
     ) as sess:
         sess.run(tf.global_variables_initializer())

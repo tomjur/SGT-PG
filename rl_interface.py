@@ -1,7 +1,7 @@
 import os
 import numpy as np
 
-from docker_path_helper import get_base_directory
+from path_helper import get_base_directory
 
 
 class TrajectoryNode:
@@ -53,8 +53,8 @@ class TrajectoryNode:
                 state_desc = 'endpoint collision'
             else:
                 assert False
-            print 'segment {},{} at budget: {} state is: {}'.format(
-                self.segment[0], self.segment[1], self.budget, state_desc)
+            print('segment {},{} at budget: {} state is: {}'.format(
+                self.segment[0], self.segment[1], self.budget, state_desc))
         else:
             self.left_subtree.print_status()
             self.right_subtree.print_status()

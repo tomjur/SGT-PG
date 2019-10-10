@@ -1,7 +1,7 @@
 import os
 import yaml
 
-from docker_path_helper import get_config_directory
+from path_helper import get_config_directory
 
 
 def read_config(config_path=None):

@@ -4,12 +4,12 @@ import tensorflow as tf
 
 class SummariesCollector:
     def __init__(self, summaries_dir, model_name):
-        self._train_summary_writer = tf.summary.FileWriter(os.path.join(summaries_dir, 'train_' + model_name))
+        self._train_summary_writer = tf.compat.v1.summary.FileWriter(os.path.join(summaries_dir, 'train_' + model_name))
         init_res = self._init_episode_summaries('train', self._train_summary_writer)
         self.write_train_success_summaries = init_res[0]
         self.write_train_optimization_summaries = init_res[1]
 
-        self._test_summary_writer = tf.summary.FileWriter(os.path.join(summaries_dir, 'test_' + model_name))
+        self._test_summary_writer = tf.compat.v1.summary.FileWriter(os.path.join(summaries_dir, 'test_' + model_name))
         init_res = self._init_episode_summaries('test', self._test_summary_writer)
         self.write_test_success_summaries = init_res[0]
         self.write_test_optimization_summaries = init_res[1]

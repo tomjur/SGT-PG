@@ -2,7 +2,7 @@ import os
 
 
 def get_base_directory():
-    return '/data'
+    return os.path.join(os.getcwd(), 'data')
 
 
 def get_config_directory():

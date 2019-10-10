@@ -1,8 +1,7 @@
 import tensorflow as tf
 import os
-import numpy as np
 
-from docker_path_helper import init_dir
+from path_helper import init_dir
 from log_utils import print_and_log
 
 

@@ -76,7 +76,7 @@ class EpisodeRunner:
             for i in range(steps):
                 start_index = i * (2 ** l)
                 end_index = (i + 1) * (2**l)
-                middle_index = (start_index + end_index) / 2
+                middle_index = int((start_index + end_index) / 2)
                 start, middle, end = endpoints[start_index], endpoints[middle_index], endpoints[end_index]
                 cost_from = splits[l-1] if l > 1 else base_costs
                 first_is_start_valid, first_is_goal_valid, first_cost = cost_from[(start_index, middle_index)][-3:]

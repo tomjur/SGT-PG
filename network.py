@@ -11,10 +11,10 @@ class Network:
         self.state_size = game.state_size
         self.levels = self.config['model']['levels']
 
-        self.start_inputs = tf.placeholder(tf.float32, (None, self.state_size), name='start_inputs')
-        self.goal_inputs = tf.placeholder(tf.float32, (None, self.state_size), name='goal_inputs')
-        self.middle_inputs = tf.placeholder(tf.float32, (None, self.state_size), name='middle_inputs')
-        self.label_inputs = tf.placeholder(tf.float32, (None, 1), name='label_inputs')
+        self.start_inputs = tf.compat.v1.placeholder(tf.float32, (None, self.state_size), name='start_inputs')
+        self.goal_inputs = tf.compat.v1.placeholder(tf.float32, (None, self.state_size), name='goal_inputs')
+        self.middle_inputs = tf.compat.v1.placeholder(tf.float32, (None, self.state_size), name='middle_inputs')
+        self.label_inputs = tf.compat.v1.placeholder(tf.float32, (None, 1), name='label_inputs')
 
         # network is comprised of several policies
         self.policy_networks = {}
@@ -196,7 +196,7 @@ class PolicyNetwork:
         self.base_std_variable = tf.Variable(
             self.config['policy']['base_std'], trainable=False, name='base_std_variable')
         new_base_std = self.config['policy']['std_decrease_rate'] * self.base_std_variable
-        self.decrease_base_std_op = tf.assign(self.base_std_variable, new_base_std)
+        self.decrease_base_std_op = tf.compat.v1.assign(self.base_std_variable, new_base_std)
 
         # get the prediction distribution
         self.prediction_distribution, self.model_variables = self._create_network(self.start_inputs, self.goal_inputs)
@@ -204,7 +204,7 @@ class PolicyNetwork:
         # to update from last level:
         if previous_policy is not None:
             self.assign_from_last_policy_ops = [
-                tf.assign(var, previous_policy.model_variables[i])
+                tf.compat.v1.assign(var, previous_policy.model_variables[i])
                 for i, var in enumerate(self.model_variables)
             ]
 
@@ -224,7 +224,7 @@ class PolicyNetwork:
             self.config['policy']['learning_rate'], trainable=False, name='learn_rate_variable')
         new_learn_rate = tf.maximum(self.config['policy']['learning_rate_minimum'],
                                     self.config['policy']['learning_rate_decrease_rate'] * self.learn_rate_variable)
-        self.decrease_learn_rate_op = tf.assign(self.learn_rate_variable, new_learn_rate)
+        self.decrease_learn_rate_op = tf.compat.v1.assign(self.learn_rate_variable, new_learn_rate)
 
         self.initial_gradients_norm, self.clipped_gradients_norm, self.optimize = \
             optimize_by_loss(
@@ -239,28 +239,28 @@ class PolicyNetwork:
 
         # summaries
         merge_summaries = [
-            tf.summary.scalar('{}_prediction_loss'.format(self.name_prefix), self.prediction_loss),
-            tf.summary.scalar('{}_regularization_loss'.format(self.name_prefix), self.regularization_loss),
-            tf.summary.scalar('{}_total_loss'.format(self.name_prefix), self.total_loss),
-            tf.summary.scalar('{}_learn_rate'.format(self.name_prefix), self.learn_rate_variable),
-            tf.summary.scalar('{}_log_likelihood'.format(self.name_prefix), mean_log_likelihood),
-            tf.summary.scalar('{}_weights_norm'.format(self.name_prefix), norm),
+            tf.compat.v1.summary.scalar('{}_prediction_loss'.format(self.name_prefix), self.prediction_loss),
+            tf.compat.v1.summary.scalar('{}_regularization_loss'.format(self.name_prefix), self.regularization_loss),
+            tf.compat.v1.summary.scalar('{}_total_loss'.format(self.name_prefix), self.total_loss),
+            tf.compat.v1.summary.scalar('{}_learn_rate'.format(self.name_prefix), self.learn_rate_variable),
+            tf.compat.v1.summary.scalar('{}_log_likelihood'.format(self.name_prefix), mean_log_likelihood),
+            tf.compat.v1.summary.scalar('{}_weights_norm'.format(self.name_prefix), norm),
         ]
         if self.initial_gradients_norm is not None:
             merge_summaries.append(
-                tf.summary.scalar(
+                tf.compat.v1.summary.scalar(
                     '{}_initial_gradients_norm'.format(self.name_prefix),
                     self.initial_gradients_norm
                 )
             )
         if self.clipped_gradients_norm is not None:
             merge_summaries.append(
-                tf.summary.scalar(
+                tf.compat.v1.summary.scalar(
                     '{}_clipped_gradients_norm'.format(self.name_prefix),
                     self.clipped_gradients_norm
                 )
             )
-        self.optimization_summaries = tf.summary.merge(merge_summaries)
+        self.optimization_summaries = tf.compat.v1.summary.merge(merge_summaries)
 
     def reuse_policy_network(self, start_inputs, goal_inputs):
         policy_distribution, model_variables = self._create_network(start_inputs, goal_inputs)
@@ -268,7 +268,7 @@ class PolicyNetwork:
         return policy_distribution
 
     def _create_network(self, start_inputs, goal_inputs):
-        variable_count = len(tf.trainable_variables())
+        variable_count = len(tf.compat.v1.trainable_variables())
         activation = get_activation(self.config['policy']['activation'])
         network_layers = self.config['policy']['layers']
         learn_std = self.config['policy']['learn_std']
@@ -314,7 +314,7 @@ class PolicyNetwork:
             bias = bias + shift
 
         distribution = tfp.distributions.MultivariateNormalDiag(loc=bias, scale_diag=std)
-        model_variables = tf.trainable_variables()[variable_count:]
+        model_variables = tf.compat.v1.trainable_variables()[variable_count:]
         if self._reuse:
             assert len(model_variables) == 0
         else:
@@ -346,7 +346,7 @@ class ValueNetwork:
             self.config['value_function']['learning_rate_minimum'],
             self.config['value_function']['learning_rate_decrease_rate'] * self.learn_rate_variable
         )
-        self.decrease_learn_rate_op = tf.assign(self.learn_rate_variable, new_learn_rate)
+        self.decrease_learn_rate_op = tf.compat.v1.assign(self.learn_rate_variable, new_learn_rate)
 
         self.initial_gradients_norm, self.clipped_gradients_norm, self.optimize = \
             optimize_by_loss(
@@ -356,24 +356,24 @@ class ValueNetwork:
 
         # summaries
         merge_summaries = [
-            tf.summary.scalar('{}_prediction_loss'.format(self.name_prefix), self.prediction_loss),
-            tf.summary.scalar('{}_learn_rate'.format(self.name_prefix), self.learn_rate_variable),
-            tf.summary.scalar('{}_mean_absolute_error'.format(self.name_prefix), mean_absolute_error),
+            tf.compat.v1.summary.scalar('{}_prediction_loss'.format(self.name_prefix), self.prediction_loss),
+            tf.compat.v1.summary.scalar('{}_learn_rate'.format(self.name_prefix), self.learn_rate_variable),
+            tf.compat.v1.summary.scalar('{}_mean_absolute_error'.format(self.name_prefix), mean_absolute_error),
             tf.summary.histogram('{}_cost'.format(self.name_prefix), self.label_inputs),
             tf.summary.histogram('{}_absolute_prediction_error'.format(self.name_prefix), absolute_prediction_error)
         ]
         if self.initial_gradients_norm is not None:
             merge_summaries.append(
-                tf.summary.scalar('{}_initial_gradients_norm'.format(self.name_prefix), self.initial_gradients_norm)
+                tf.compat.v1.summary.scalar('{}_initial_gradients_norm'.format(self.name_prefix), self.initial_gradients_norm)
             )
         if self.clipped_gradients_norm is not None:
             merge_summaries.append(
-                tf.summary.scalar('{}_clipped_gradients_norm'.format(self.name_prefix), self.clipped_gradients_norm)
+                tf.compat.v1.summary.scalar('{}_clipped_gradients_norm'.format(self.name_prefix), self.clipped_gradients_norm)
             )
-        self.optimization_summaries = tf.summary.merge(merge_summaries)
+        self.optimization_summaries = tf.compat.v1.summary.merge(merge_summaries)
 
     def _create_network(self, start_inputs, goal_inputs):
-        variable_count = len(tf.trainable_variables())
+        variable_count = len(tf.compat.v1.trainable_variables())
         activation = get_activation(self.config['value_function']['activation'])
         network_layers = self.config['value_function']['layers']
 
@@ -388,5 +388,5 @@ class ValueNetwork:
             name='{}_last_layer'.format(self.name_prefix)
         )
 
-        model_variables = tf.trainable_variables()[variable_count:]
+        model_variables = tf.compat.v1.trainable_variables()[variable_count:]
         return value_prediction, model_variables
