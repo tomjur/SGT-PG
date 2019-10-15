@@ -9,7 +9,7 @@ from episode_runner import EpisodeRunner
 from model_saver import ModelSaver
 from network import Network
 from summaries_collector import SummariesCollector
-from path_helper import get_base_directory, init_dir
+from path_helper import get_base_directory, init_dir, serialize_compress
 from log_utils import init_log, print_and_log, close_log
 from trainer import Trainer
 
@@ -145,10 +145,8 @@ def run_for_config(config):
                         config['gradient_checker']['gradient_points_to_sample'], current_level, cycle)
 
                 # do test
-                test_trajectories_file = os.path.join(test_trajectories_dir, '{}.txt'.format(global_step))
-                test_successes, test_cost, _ = trainer.collect_data(
-                    config['general']['test_episodes'], current_level, trajectories_file=test_trajectories_file,
-                    is_train=False, use_fixed_start_goal_pairs=True)
+                test_successes, test_cost, _, endpoints_by_path = trainer.collect_data(
+                    config['general']['test_episodes'], current_level, is_train=False, use_fixed_start_goal_pairs=True)
                 summaries_collector.write_test_success_summaries(sess, global_step, test_successes, test_cost)
 
                 # decide how to act next
@@ -162,6 +160,8 @@ def run_for_config(config):
                     no_test_improvement = 0
                     consecutive_learn_rate_decrease = 0
                     best_saver.save(sess, global_step)
+                    test_trajectories_file = os.path.join(test_trajectories_dir, '{}.txt'.format(global_step))
+                    serialize_compress(endpoints_by_path, test_trajectories_file)
                     if config['general']['weight_printing_frequency'] > 0:
                         print_policy_weights(sess, network, global_step, 'best', weights_log_dir)
                 else:
@@ -220,11 +220,11 @@ def run_for_config(config):
         print_and_log('end of run best: {} from step: {}'.format(best_cost, best_cost_global_step))
         print_and_log('testing on a new set of start-goal pairs')
         test_trajectories_file = os.path.join(test_trajectories_dir, '-1.txt')
-        trainer.collect_data(
-            config['general']['test_episodes'], current_level, trajectories_file=test_trajectories_file, is_train=False,
+        endpoints_by_path = trainer.collect_data(
+            config['general']['test_episodes'], current_level, is_train=False,
             use_fixed_start_goal_pairs=False
-        )
-
+        )[-1]
+        serialize_compress(endpoints_by_path, test_trajectories_file)
         if config['general']['weight_printing_frequency'] > 0:
             print_policy_weights(sess, network, global_step, 'final', weights_log_dir)
 

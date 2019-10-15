@@ -24,9 +24,6 @@ class Trainer:
         self.train_episodes_per_cycle = config['general']['train_episodes_per_cycle']
         self.gain = config['model']['gain']
 
-        self.train_trajectories_dir = os.path.join(self.working_dir, 'trajectories', self.model_name)
-        init_dir(self.train_trajectories_dir)
-
         self.check_gradients = config['gradient_checker']['enable']
         if self.check_gradients:
             self.gradient_output_dir = os.path.join(working_dir, 'gradient', model_name)
@@ -56,9 +53,8 @@ class Trainer:
         return new_costs
 
     def train_policy_at_level(self, top_level, global_step):
-        successes, accumulated_cost, dataset = self.collect_data(
-            self.train_episodes_per_cycle, top_level, trajectories_file=self._get_trajectories_file(global_step),
-            is_train=True, use_fixed_start_goal_pairs=False)
+        successes, accumulated_cost, dataset, _ = self.collect_data(
+            self.train_episodes_per_cycle, top_level, is_train=True, use_fixed_start_goal_pairs=False)
         if global_step % self.summaries_frequency == 0:
             self.summaries_collector.write_train_success_summaries(self.sess, global_step, successes, accumulated_cost)
 
@@ -86,9 +82,8 @@ class Trainer:
         return costs
 
     def train_value_function_at_level(self, top_level, global_step):
-        successes, accumulated_cost, dataset = self.collect_data(
-            self.train_episodes_per_cycle, top_level, trajectories_file=self._get_trajectories_file(global_step),
-            is_train=True, use_fixed_start_goal_pairs=False)
+        successes, accumulated_cost, dataset, _ = self.collect_data(
+            self.train_episodes_per_cycle, top_level, is_train=True, use_fixed_start_goal_pairs=False)
         if global_step % self.summaries_frequency == 0:
             self.summaries_collector.write_train_success_summaries(self.sess, global_step, successes, accumulated_cost)
 
@@ -107,7 +102,7 @@ class Trainer:
             global_step += 1
         return global_step, prediction_loss
 
-    def collect_data(self, count, top_level, trajectories_file=None, is_train=True, use_fixed_start_goal_pairs=False):
+    def collect_data(self, count, top_level, is_train=True, use_fixed_start_goal_pairs=False):
         print_and_log('collecting {} {} episodes of level {}'.format(count, 'train' if is_train else 'test', top_level))
         if use_fixed_start_goal_pairs:
             episode_results = self.episode_runner.play_fixed_episodes(top_level, is_train)
@@ -115,19 +110,9 @@ class Trainer:
             episode_results = self.episode_runner.play_random_episodes(count, top_level, is_train)
         successes, accumulated_cost, dataset, endpoints_by_path = self._process_episode_results(
             episode_results, top_level)
-        # write trajectory file
-        if trajectories_file is not None:
-            with open(trajectories_file, 'w') as f:
-                for path_id in endpoints_by_path:
-                    endpoints, is_valid_episode = endpoints_by_path[path_id]
-                    f.write('path_id_{}{}'.format(path_id, os.linesep))
-                    f.write('{}{}'.format('success' if is_valid_episode else 'collision', os.linesep))
-                    for e in endpoints:
-                        f.write('{}{}'.format(str(e), os.linesep))
-                f.flush()
         print_and_log(
             'data collection done, success rate is {}, accumulated cost is {}'.format(successes, accumulated_cost))
-        return successes, accumulated_cost, dataset
+        return successes, accumulated_cost, dataset, endpoints_by_path
 
     def _process_episode_results(self, episode_results, top_level):
         accumulated_cost, successes = [], []
@@ -162,12 +147,6 @@ class Trainer:
         successes = np.mean(successes)
         accumulated_cost = np.mean(accumulated_cost)
         return successes, accumulated_cost, dataset, endpoints_by_path
-
-    def _get_trajectories_file(self, global_step):
-        if global_step % self.steps_per_trajectory_print == 0:
-            return os.path.join(self.train_trajectories_dir, '{}.txt'.format(global_step))
-        else:
-            return None
 
     def _get_relevant_levels(self, top_level):
         if self.train_levels == 'all-below':

@@ -3,7 +3,7 @@ import os
 import pickle
 import random
 
-from path_helper import get_base_directory, init_dir
+from path_helper import get_base_directory, init_dir, deserialize_uncompress
 from point_robot_manager import PointRobotManager
 
 scenario = 'point_robot_box_0.2'
@@ -12,7 +12,7 @@ scenario = 'point_robot_box_0.2'
 # scenario = 'point_robot_easy2'
 # scenario = 'point_robot_hard_corridors'
 
-model_name = '2019_10_10_14_44_02_to_remove'
+model_name = '2019_10_15_15_04_39'
 cycles = ['-1']
 source_trajectories = 'test_trajectories'
 num_trajectories = -1
@@ -42,20 +42,16 @@ for cycle in cycles:
     point_robot_manager = PointRobotManager(obstacles_definitions)
 
     trajectory_file = os.path.join(trajectories_dir, '{}.txt'.format(cycle))
-    with open(trajectory_file) as f:
-        all_lines = f.readlines()
-    all_lines = ''.join(all_lines)
-    data_by_path = all_lines.split('path_id_')
-    data_by_path = [d for d in data_by_path if len(d) > 0]
+    data_by_path = deserialize_uncompress(trajectory_file)
+
     if 0 < num_trajectories < len(data_by_path):
         # sample if the number of trajectories is bigger than zero and less than total number of trajectories
-        data_by_path = random.sample(data_by_path, num_trajectories)
+        data_by_path = {k: data_by_path[k] for k in random.sample(data_by_path.keys(), num_trajectories)}
 
-    for d in data_by_path:
-        lines = d.split(os.linesep)
-        path_id = lines[0]
-        status = lines[1]
-        trajectory = [parse_trajectory_line(l) for l in lines[2:] if len(l) > 0]
+    for path_id in data_by_path:
+        current_item = data_by_path[path_id]
+        status = 'success' if current_item[1] else 'collision'
+        trajectory = current_item[0]
         output_file_location = os.path.join(cycle_output_dir, '{}_{}.png'.format(path_id, status))
         point_robot_manager.plot(paths=[trajectory]).savefig(output_file_location)
         plt.clf()
