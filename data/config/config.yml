@@ -3,9 +3,9 @@ general:
 #  scenario: 'point_robot_easy'
 #  scenario: 'point_robot_easy2'
 #  scenario: 'point_robot_easy2_transposed'
-#  scenario: 'point_robot_box_0.2'
+  scenario: 'point_robot_box_0.2'
 #  scenario: 'point_robot_box_0.8'
-  scenario: 'point_robot_box_1.6'
+#  scenario: 'point_robot_box_1.6'
 #  scenario: 'point_robot_corridor'
 #  scenario: 'point_robot_hard_corridors'
 #  scenario: panda_no_obs
@@ -23,8 +23,8 @@ general:
   weight_printing_frequency: 0
 
 cost:
-  collision_cost: 20.0
-  is_constant_collision_cost: False
+  collision_cost: 10.0
+  is_constant_collision_cost: True
   free_cost: 1.0
   is_constant_free_cost: False
   type: 'linear'
@@ -49,9 +49,10 @@ model:
 #  gain: 'full-traj'
   gain: 'future-only'
   repeat_train_trajectories: 10
+#  repeat_train_trajectories: 3
 
 policy:
-  learning_rate: 0.01
+  learning_rate: 0.05
   learning_rate_decrease_rate: 1.
 #  learning_rate_decrease_rate: 0.8
   learning_rate_minimum: 0.0005
