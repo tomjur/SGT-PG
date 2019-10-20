@@ -40,6 +40,11 @@ class PandaGame(AbstractMotionPlanningGame):
     @staticmethod
     def get_scene_manager(config):
         panda_scene_manager = PandaSceneManager(use_ui=False)
+        PandaGame.add_obstacles(config, panda_scene_manager)
+        return panda_scene_manager
+
+    @staticmethod
+    def add_obstacles(config, panda_scene_manager):
         params_file = AbstractMotionPlanningGame.get_params_from_config(config)
         if 'no_obs' in params_file:
             obstacles_definitions_list = []
@@ -47,7 +52,6 @@ class PandaGame(AbstractMotionPlanningGame):
             with open(params_file, 'r') as f:
                 obstacles_definitions_list = f.readlines()
         panda_scene_manager.add_obstacles(obstacles_definitions_list)
-        return panda_scene_manager
 
     @staticmethod
     def _truncate_virtual_state(state):
@@ -60,14 +64,12 @@ class PandaGame(AbstractMotionPlanningGame):
 
     @staticmethod
     def _is_free_state_in_manager(state, panda_scene_manager):
-        if any(np.abs(state)) > 1.0:
+        if any(np.abs(state) > 1.0):
             return False
         state_ = PandaGame._virtual_to_real_state(state, panda_scene_manager)
         panda_scene_manager.change_robot_joints(state_)
-        panda_scene_manager.simulation_step()
-        traj = panda_scene_manager.reach_joint_positions(state_, 100)
-        (start_joints, start_velocities), is_collision = traj[-1]
-        if not panda_scene_manager.is_close(start_joints, state_):
+        is_collision = panda_scene_manager.simulation_step()[1]
+        if not panda_scene_manager.is_close(state_):
             return False
         if is_collision:
             return False
@@ -80,8 +82,15 @@ class PandaGame(AbstractMotionPlanningGame):
 
     def get_fixed_start_goal_pairs(self):
         # for now a long straight movement
-        s = np.array(self.lower) * 0.8
-        g = np.array(self.upper) * 0.8
+        lower = np.array(self.panda_scene_manager.joints_lower_bounds)
+        upper = np.array(self.panda_scene_manager.joints_upper_bounds)
+
+        s = self._real_to_virtual_state(upper, self.panda_scene_manager)
+        assert self.is_free_state(s)
+
+        joints = 0.9 * upper + 0.1 * lower
+        g = self._real_to_virtual_state(joints, self.panda_scene_manager)
+        assert self.is_free_state(g)
         return [(s, g)]
 
     def check_terminal_segments(self, cost_queries):
@@ -143,6 +152,8 @@ class GameWorker(multiprocessing.Process):
                 time.sleep(1.0)
 
     def check_terminal_segment(self, start, end):
+        self.panda_scene_manager.reset_simulation()
+        PandaGame.add_obstacles(self.config, self.panda_scene_manager)
         # check the end points
         truncated_start, truncated_distance_start = PandaGame._truncate_virtual_state(start)
         truncated_end, truncated_distance_end = PandaGame._truncate_virtual_state(end)
@@ -191,19 +202,15 @@ class GameWorker(multiprocessing.Process):
         if not self.panda_scene_manager.is_close(start):
             self.panda_scene_manager.change_robot_joints(start)
             self.panda_scene_manager.simulation_step()
-            self.panda_scene_manager.reach_joint_positions(start, max_steps=100, stop_on_collision=True)
         is_start_valid = self.panda_scene_manager.is_close(start) and not self.panda_scene_manager.is_collision()
         if not is_start_valid:
             # if the segment is not free
             return is_start_valid, 0.0, segment_length
-        # this is the maximal allowed divergence
-        allowed_distance = segment_length * 1.5
         is_free = True
+        self.panda_scene_manager.set_movement_target(end)
         while not self.panda_scene_manager.is_close(end):
-            (current_position, _), is_collision = self.panda_scene_manager.single_step_move_all_joints_by_position(end)
-            current_position_ = np.array(current_position)
-            current_distance = np.linalg.norm(current_position_ - end)
-            if is_collision or current_distance > allowed_distance:
+            is_collision = self.panda_scene_manager.simulation_step()[1]
+            if is_collision:
                 is_free = False
                 break
         if is_free:

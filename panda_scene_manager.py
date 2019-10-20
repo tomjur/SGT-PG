@@ -1,4 +1,3 @@
-import time
 import os
 
 import pybullet as p
@@ -11,21 +10,19 @@ class PandaSceneManager:
     # for reference see
     # https://docs.google.com/document/d/10sXEhzFRSnvFcl3XxNGhnD4N2SedqwdAvK3dsihxVUA/edit#
 
-    def __init__(self, use_ui=True, robot_position=(0., 0., 0.3), position_sensitivity=0.0001):
+    def __init__(self, use_ui=True, robot_position=(0., 0., 0.3), position_sensitivity=0.0001,
+                 collision_penetration=0.0001, max_motion_force=1.):
         self.use_ui = use_ui
         self.position_sensitivity = position_sensitivity
+        self.collision_penetration = collision_penetration
+        self.max_motion_force = max_motion_force
+
         self.robot_base = robot_position
         # setup pybullet
         self.my_id = p.connect(p.GUI if use_ui else p.DIRECT)
-        pybullet_dir = os.path.join(get_base_directory(), 'pybullet')
-        franka_panda_dir = os.path.join(pybullet_dir, 'franka_panda')
-        p.loadURDF(os.path.join(pybullet_dir, 'plane.urdf'), physicsClientId=self.my_id)
-        p.setRealTimeSimulation(0, physicsClientId=self.my_id)
-        p.setPhysicsEngineParameter(numSolverIterations=300, physicsClientId=self.my_id)
-        p.setPhysicsEngineParameter(numSubSteps=10, physicsClientId=self.my_id)
-        # load the robot
-        self.robot = p.loadURDF(os.path.join(franka_panda_dir, 'panda_arm_hand.urdf'), self.robot_base,
-                                useFixedBase=True, physicsClientId=self.my_id)
+
+        self.robot, self.objects = self.reset_simulation()
+
         # init all joints info
         self._number_of_all_joints = p.getNumJoints(self.robot, physicsClientId=self.my_id)
         joints_info = self._get_joints_properties()
@@ -44,11 +41,24 @@ class PandaSceneManager:
         self.joints_upper_bounds = res[4]
         self.number_of_joints = len(self._external_to_internal_joint_index)
 
-        # objects in the world
-        self.objects = set()
+    def reset_simulation(self):
+        p.resetSimulation(physicsClientId=self.my_id)
+        pybullet_dir = os.path.join(get_base_directory(), 'pybullet')
+        franka_panda_dir = os.path.join(pybullet_dir, 'franka_panda')
+        p.loadURDF(os.path.join(pybullet_dir, 'plane.urdf'), physicsClientId=self.my_id)
+        p.setRealTimeSimulation(0, physicsClientId=self.my_id)
+        p.setPhysicsEngineParameter(numSolverIterations=300, physicsClientId=self.my_id)
+        p.setPhysicsEngineParameter(numSubSteps=10, physicsClientId=self.my_id)
+        # load the robot
+        robot = p.loadURDF(os.path.join(franka_panda_dir, 'panda_arm_hand_modified.urdf'), self.robot_base,
+                           useFixedBase=True, physicsClientId=self.my_id,
+                           flags=p.URDF_USE_SELF_COLLISION | p.URDF_USE_SELF_COLLISION_EXCLUDE_PARENT)
+        p.setCollisionFilterPair(robot, robot, 6, 8, 0, physicsClientId=self.my_id)
 
         # camera
         self.set_camera(3.5, 135, -20, [0., 0., 0.])
+
+        return robot, set()
 
     def add_obstacles(self, obstacles_definitions_list):
         obstacles_definitions_list = [float(x) for x in obstacles_definitions_list]
@@ -74,69 +84,28 @@ class PandaSceneManager:
             link_poses.append((position, orientation))
         return link_poses
 
-    def reset_robot(self):
-        self.change_robot_joints([0.0 for _ in range(len(self._external_to_internal_joint_index))])
-
     def change_robot_joints(self, joints):
         assert len(joints) == len(self._external_to_internal_joint_index)
         for virtual_joint_index in range(len(joints)):
             joint_index = self._external_to_internal_joint_index[virtual_joint_index]
-            p.resetJointState(self.robot, joint_index, targetValue=joints[virtual_joint_index], targetVelocity=0.0, physicsClientId=self.my_id)
+            p.resetJointState(
+                self.robot, joint_index, targetValue=joints[virtual_joint_index], targetVelocity=0.0,
+                physicsClientId=self.my_id
+            )
 
     def get_robot_state(self):
         joint_position_velocity_pairs = [
-            (t[0], t[1]) for t in p.getJointStates(self.robot, self._external_to_internal_joint_index, physicsClientId=self.my_id)
+            (t[0], t[1])
+            for t in p.getJointStates(self.robot, self._external_to_internal_joint_index, physicsClientId=self.my_id)
         ]
         return list(zip(*joint_position_velocity_pairs))
 
-    def single_step_move_joint_by_position(self, joint_index, target_position, maintain_positions_other_joints=True):
-        if maintain_positions_other_joints:
-            target_positions = list(self.get_robot_state()[0])
-            target_positions[joint_index] = target_position
-            self.single_step_move_all_joints_by_position(target_positions)
-        else:
-            real_joint = self._external_to_internal_joint_index[joint_index]
-            p.setJointMotorControl2(self.robot, real_joint, p.POSITION_CONTROL, targetPosition=target_position, force=1., physicsClientId=self.my_id)
-        return self.simulation_step()
-
-    def single_step_move_all_joints_by_position(self, target_positions):
-        assert len(target_positions) == self.number_of_joints
+    def set_movement_target(self, target_joints):
+        assert len(target_joints) == self.number_of_joints
         p.setJointMotorControlArray(
-            self.robot, self._external_to_internal_joint_index, p.POSITION_CONTROL, targetPositions=target_positions, forces=[1.] * self.number_of_joints, physicsClientId=self.my_id)
-        return self.simulation_step()
-
-    def reach_joint_position(
-            self, joint_index, target_position, max_steps, maintain_positions_other_joints=True, stop_on_collision=True
-    ):
-        trajectory = [(self.get_robot_state(), self.is_collision())]
-        while len(trajectory) <= max_steps:
-            last_state = trajectory[-1]
-            current_joints = last_state[0][0]
-            if np.abs(target_position - current_joints[joint_index]) < self.position_sensitivity:
-                # close enough
-                break
-            if stop_on_collision and last_state[1]:
-                # collision detected
-                break
-            trajectory.append(self.single_step_move_joint_by_position(
-                joint_index, target_position, maintain_positions_other_joints))
-        return trajectory
-
-    def reach_joint_positions(
-            self, target_position, max_steps, stop_on_collision=True
-    ):
-        trajectory = [(self.get_robot_state(), self.is_collision())]
-        while len(trajectory) <= max_steps:
-            last_state = trajectory[-1]
-            current_joints = last_state[0][0]
-            if self.is_close(current_joints, target_position):
-                # close enough
-                break
-            if stop_on_collision and last_state[1]:
-                # collision detected
-                break
-            trajectory.append(self.single_step_move_all_joints_by_position(target_position))
-        return trajectory
+            self.robot, self._external_to_internal_joint_index, p.POSITION_CONTROL, targetPositions=target_joints,
+            forces=[self.max_motion_force] * self.number_of_joints, physicsClientId=self.my_id
+        )
 
     def _get_joints_properties(self):
         joints_info = [p.getJointInfo(self.robot, i, physicsClientId=self.my_id) for i in range(self._number_of_all_joints)]
@@ -149,24 +118,33 @@ class PandaSceneManager:
         p.stepSimulation(physicsClientId=self.my_id)
         return self.get_robot_state(), self.is_collision()
 
+    def get_collisions(self):
+        return [
+            contact
+            for contact in p.getContactPoints(self.robot, physicsClientId=self.my_id) if contact[8] < -0.0001
+        ]
+
     def is_collision(self):
-        return len([
-            contact_point for contact_point in p.getContactPoints(self.robot, physicsClientId=self.my_id) if contact_point[8] < 0.0
-        ]) > 0
+        collisions = self.get_collisions()
+        return len(collisions) > 0
 
     def add_sphere(self, radius, base_position, mass=0.):
         collision_sphere = p.createCollisionShape(p.GEOM_SPHERE, radius=radius, physicsClientId=self.my_id)
         visual_sphere = p.createVisualShape(p.GEOM_SPHERE, radius=radius, physicsClientId=self.my_id)
-        sphere = p.createMultiBody(baseMass=mass, baseCollisionShapeIndex=collision_sphere,
-                                   baseVisualShapeIndex=visual_sphere, basePosition=base_position, physicsClientId=self.my_id)
+        sphere = p.createMultiBody(
+            baseMass=mass, baseCollisionShapeIndex=collision_sphere, baseVisualShapeIndex=visual_sphere,
+            basePosition=base_position, physicsClientId=self.my_id
+        )
         self.objects.add(sphere)
         return sphere
 
     def add_box(self, sides, base_position, mass=0.):
         collision_box = p.createCollisionShape(p.GEOM_BOX, halfExtents=sides, physicsClientId=self.my_id)
         visual_box = p.createVisualShape(p.GEOM_BOX, halfExtents=sides, physicsClientId=self.my_id)
-        box = p.createMultiBody(baseMass=mass, baseCollisionShapeIndex=collision_box,
-                                   baseVisualShapeIndex=visual_box, basePosition=base_position, physicsClientId=self.my_id)
+        box = p.createMultiBody(
+            baseMass=mass, baseCollisionShapeIndex=collision_box, baseVisualShapeIndex=visual_box,
+            basePosition=base_position, physicsClientId=self.my_id
+        )
         self.objects.add(box)
         return box
 
@@ -178,80 +156,3 @@ class PandaSceneManager:
         if state2 is None:
             state2 = self.get_robot_state()[0]
         return np.linalg.norm(np.array(state1) - np.array(state2)) < self.position_sensitivity
-
-if __name__ == '__main__':
-    panda_scene_manager = PandaSceneManager(use_ui=False)
-    panda_scene_manager.reset_robot()
-    # joint_positions, joint_velocities = panda_scene_manager.get_robot_state()
-    # print(joint_positions, joint_velocities)
-    # joint_positions, joint_velocities = panda_scene_manager.single_step_move_joint_by_position(
-    #     0, panda_scene_manager.joints_upper_bounds[0], True)
-    # print(joint_positions, joint_velocities)
-    # joint_positions, joint_velocities = panda_scene_manager.single_step_move_joint_by_position(
-    #     0, panda_scene_manager.joints_upper_bounds[0], False)
-    # print(joint_positions, joint_velocities)
-    # joint_positions, joint_velocities = panda_scene_manager.single_step_move_all_joints_by_position(
-    #     panda_scene_manager.joints_upper_bounds)
-    # print(joint_positions, joint_velocities)
-    # panda_scene_manager.reset_robot()
-    # trajectory = panda_scene_manager.reach_joint_position(0, panda_scene_manager.joints_upper_bounds[0], 100, True)
-    # for t in trajectory:
-    #     print(t)
-    # print(len(trajectory))
-    # panda_scene_manager.reset_robot()
-    # trajectory = panda_scene_manager.reach_joint_position(0, panda_scene_manager.joints_upper_bounds[0], 100, False)
-    # for t in trajectory:
-    #     print(t)
-    # print(len(trajectory))
-
-    # panda_scene_manager.add_sphere(0.3, [0.4, 0.4, 0.4])
-
-    scenario = 'panda_easy'
-    # scenario = 'panda_hard'
-    obstacles_definitions_list = []
-    with open(os.path.join(get_base_directory(), 'scenario_params', scenario, 'params.pkl'), 'r') as params_file:
-        obstacles_definitions_list = params_file.readlines()
-    panda_scene_manager.add_obstacles(obstacles_definitions_list)
-
-    # # easy
-    # panda_scene_manager.add_box([0.5, 0.04, 0.9], [0.75, 0.0, 0.5 + z_offset])
-    #
-    # # hard
-    # panda_scene_manager.add_box([0.5, 0.5, 0.01], [0.0, 0.8, 0.65 + z_offset])
-    # panda_scene_manager.add_box([0.5, 0.5, 0.01], [0.0, -0.8, 0.65 + z_offset])
-    #
-    # panda_scene_manager.add_box([0.5, 0.5, 0.01], [0.8, 0.0, 0.65 + z_offset])
-    # panda_scene_manager.add_box([0.5, 0.5, 0.01], [-0.8, 0.0, 0.65 + z_offset])
-
-    def go_random_start_goal(initial_camera, steps=200, collisions_to_stop=10):
-        # start somewhere
-        start = np.random.uniform(panda_scene_manager.joints_lower_bounds, panda_scene_manager.joints_upper_bounds)
-        # try to reach the start
-        panda_scene_manager.change_robot_joints(start)
-        panda_scene_manager.simulation_step()
-        traj = panda_scene_manager.reach_joint_positions(start, 100)
-        (start_joints, start_velocities), is_collision = traj[-1]
-        if np.linalg.norm(start - start_joints) > 0.0001:
-            print('failed to reach start')
-            return 0
-        if is_collision:
-            print('started in collision')
-            return 0
-        collision_count = 0
-        target = np.random.uniform(panda_scene_manager.joints_lower_bounds, panda_scene_manager.joints_upper_bounds)
-        for i in range(steps):
-            new_state, is_collision = panda_scene_manager.single_step_move_all_joints_by_position(target)
-            panda_scene_manager.set_camera(3.5, i + initial_camera / 10, -20, [0., 0., 0.])
-            time.sleep(0.01)
-            if is_collision:
-                collision_count += 1
-            if collision_count == collisions_to_stop:
-                print('movement in collision')
-                return i
-        print('random motion successful')
-        return steps
-
-    i = 0
-    while(True):
-        i += go_random_start_goal(i)
-
