@@ -3,6 +3,7 @@ import multiprocessing
 import queue
 import time
 
+from log_utils import print_and_log
 from panda_scene_manager import PandaSceneManager
 from rl_interface import AbstractMotionPlanningGame
 
@@ -85,12 +86,13 @@ class PandaGame(AbstractMotionPlanningGame):
         lower = np.array(self.panda_scene_manager.joints_lower_bounds)
         upper = np.array(self.panda_scene_manager.joints_upper_bounds)
 
-        s = self._real_to_virtual_state(upper, self.panda_scene_manager)
+        g = self._real_to_virtual_state(upper, self.panda_scene_manager)
+        assert self.is_free_state(g)
+
+        joints = 0.5 * upper + 0.5 * lower
+        s = self._real_to_virtual_state(joints, self.panda_scene_manager)
         assert self.is_free_state(s)
 
-        joints = 0.9 * upper + 0.1 * lower
-        g = self._real_to_virtual_state(joints, self.panda_scene_manager)
-        assert self.is_free_state(g)
         return [(s, g)]
 
     def check_terminal_segments(self, cost_queries):
@@ -208,9 +210,24 @@ class GameWorker(multiprocessing.Process):
             return is_start_valid, 0.0, segment_length
         is_free = True
         self.panda_scene_manager.set_movement_target(end)
-        while not self.panda_scene_manager.is_close(end):
+        steps = 0
+        while not (self.panda_scene_manager.is_close(end) and not self.panda_scene_manager.is_moving()):
             is_collision = self.panda_scene_manager.simulation_step()[1]
+            steps += 1
             if is_collision:
+                is_free = False
+                break
+            if steps == 50000:
+                current_joints, current_speed = self.panda_scene_manager.get_robot_state()
+                distance_to_target = np.linalg.norm(np.array(current_joints) - np.array(end))
+                speed = np.linalg.norm(np.array(current_speed))
+                print_and_log('segment took too long, aborting for collision. distance to target {}, speed {}'.format(
+                    distance_to_target, speed
+                ))
+                print_and_log('start {}'.format(start.tolist()))
+                print_and_log('end {}'.format(end.tolist()))
+                print_and_log('current {}'.format(np.array(current_joints).tolist()))
+                print_and_log('')
                 is_free = False
                 break
         if is_free:

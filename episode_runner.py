@@ -85,7 +85,11 @@ class EpisodeRunner:
                     # if any segment is bad, ignore upper levels
                     is_start_valid, is_goal_valid, cost = None, None, None
                 else:
-                    assert first_is_goal_valid == second_is_start_valid
+                    # if first_is_goal_valid != second_is_start_valid:
+                    #     print_and_log('bad segment agreement')
+                    #     print_and_log('start {} middle {} end {}'.format(start, middle, end))
+                    #     print_and_log('first_is_goal_valid {} second_is_start_valid {}'.format(first_is_goal_valid, second_is_start_valid))
+                    #     assert False
                     is_start_valid = first_is_start_valid
                     is_goal_valid = second_is_goal_valid
                     cost = first_cost + second_cost

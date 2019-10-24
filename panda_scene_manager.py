@@ -10,12 +10,11 @@ class PandaSceneManager:
     # for reference see
     # https://docs.google.com/document/d/10sXEhzFRSnvFcl3XxNGhnD4N2SedqwdAvK3dsihxVUA/edit#
 
-    def __init__(self, use_ui=True, robot_position=(0., 0., 0.3), position_sensitivity=0.0001,
-                 collision_penetration=0.0001, max_motion_force=1.):
+    def __init__(self, use_ui=True, robot_position=(0., 0., 0.3), position_sensitivity=0.005,
+                 collision_penetration=0.0001):
         self.use_ui = use_ui
         self.position_sensitivity = position_sensitivity
         self.collision_penetration = collision_penetration
-        self.max_motion_force = max_motion_force
 
         self.robot_base = robot_position
         # setup pybullet
@@ -50,7 +49,7 @@ class PandaSceneManager:
         p.setPhysicsEngineParameter(numSolverIterations=300, physicsClientId=self.my_id)
         p.setPhysicsEngineParameter(numSubSteps=10, physicsClientId=self.my_id)
         # load the robot
-        robot = p.loadURDF(os.path.join(franka_panda_dir, 'panda_arm_hand_modified.urdf'), self.robot_base,
+        robot = p.loadURDF(os.path.join(franka_panda_dir, 'panda_arm_hand_modified_2.urdf'), self.robot_base,
                            useFixedBase=True, physicsClientId=self.my_id,
                            flags=p.URDF_USE_SELF_COLLISION | p.URDF_USE_SELF_COLLISION_EXCLUDE_PARENT)
         p.setCollisionFilterPair(robot, robot, 6, 8, 0, physicsClientId=self.my_id)
@@ -100,11 +99,16 @@ class PandaSceneManager:
         ]
         return list(zip(*joint_position_velocity_pairs))
 
-    def set_movement_target(self, target_joints):
+    def set_movement_target(
+            self, target_joints,
+            max_forces=(500., 500., 500., 500., 500., 500., 500., 10., 10.),
+            position_coeff=(0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3),
+            velocity_coeff=(1., 1., 1., 1., 1., 1., 1., 1., 1.)
+    ):
         assert len(target_joints) == self.number_of_joints
         p.setJointMotorControlArray(
             self.robot, self._external_to_internal_joint_index, p.POSITION_CONTROL, targetPositions=target_joints,
-            forces=[self.max_motion_force] * self.number_of_joints, physicsClientId=self.my_id
+            forces=max_forces, positionGains=position_coeff, velocityGains=velocity_coeff, physicsClientId=self.my_id
         )
 
     def _get_joints_properties(self):
@@ -156,3 +160,8 @@ class PandaSceneManager:
         if state2 is None:
             state2 = self.get_robot_state()[0]
         return np.linalg.norm(np.array(state1) - np.array(state2)) < self.position_sensitivity
+
+    def is_moving(self):
+        velocities = self.get_robot_state()[1]
+        if np.linalg.norm(velocities) > 0.1:
+            return True
