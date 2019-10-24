@@ -16,7 +16,7 @@ class ModelSaver:
             variables = tf.global_variables()
         self.variables = variables
 
-        self._saver = tf.train.Saver(
+        self._saver = tf.compat.v1.train.Saver(
             var_list=self.variables, max_to_keep=max_to_keep, save_relative_paths=self.saver_dir)
         self._restore_path = None
 

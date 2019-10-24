@@ -19,9 +19,9 @@ class SummariesCollector:
         success_rate_var = tf.Variable(0, trainable=False, dtype=tf.float32)
         accumulated_cost_var = tf.Variable(0, trainable=False, dtype=tf.float32)
 
-        summaries = tf.summary.merge([
-            tf.summary.scalar(prefix + '_success_rate', success_rate_var),
-            tf.summary.scalar(prefix + '_accumulated_cost', accumulated_cost_var),
+        summaries = tf.compat.v1.summary.merge([
+            tf.compat.v1.summary.scalar(prefix + '_success_rate', success_rate_var),
+            tf.compat.v1.summary.scalar(prefix + '_accumulated_cost', accumulated_cost_var),
         ])
 
         def write_success_summaries(sess, global_step, success_rate, cost):

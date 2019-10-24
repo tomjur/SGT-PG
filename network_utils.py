@@ -12,7 +12,7 @@ def get_activation(activation):
 
 
 def optimize_by_loss(loss, parameters_to_optimize, learning_rate, gradient_limit):
-    optimizer = tf.train.AdamOptimizer(learning_rate)
+    optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate)
     gradients, variables = zip(*optimizer.compute_gradients(loss, parameters_to_optimize))
     initial_gradients_norm = tf.linalg.global_norm(gradients)
     if gradient_limit > 0.0:
