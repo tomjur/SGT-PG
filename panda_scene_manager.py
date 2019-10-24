@@ -3,6 +3,7 @@ import os
 import pybullet as p
 import numpy as np
 
+from log_utils import print_and_log
 from path_helper import get_base_directory
 
 
@@ -165,3 +166,96 @@ class PandaSceneManager:
         velocities = self.get_robot_state()[1]
         if np.linalg.norm(velocities) > 0.1:
             return True
+
+    def walk_between_waypoints(self, start, end, max_waypoint_sensetivity_intervals=5000):
+        # partition to waypoints
+        waypoints = self._get_waypoints(start, end, max_waypoint_sensetivity_intervals)
+        # we want to get is_goal_valid by moving in the "segment" [end_, end_]
+        waypoints.append(end)
+
+        # check each waypoint
+        sum_free = 0.0
+        sum_collision = 0.0
+        is_start_valid, is_goal_valid = None, None
+
+        for waypoint_index in range(len(waypoints) - 1):
+            is_start_waypoint_valid, free_length, collision_length = self._walk_small_segment(
+                waypoints[waypoint_index], waypoints[waypoint_index + 1]
+            )
+            if waypoint_index == 0:
+                is_start_valid = is_start_waypoint_valid
+            if waypoint_index == len(waypoints) - 2:
+                is_goal_valid = is_start_waypoint_valid
+            sum_free += free_length
+            sum_collision += collision_length
+
+        return is_start_valid, is_goal_valid, sum_free, sum_collision
+
+    def _get_waypoints(self, start, end, max_waypoint_sensetivity_intervals):
+        max_step = self.position_sensitivity * max_waypoint_sensetivity_intervals
+        initial_distance = np.linalg.norm(end - start)
+        num_steps = int(np.ceil(initial_distance / max_step))
+
+        direction = end - start
+        direction = direction / np.linalg.norm(direction)
+        waypoints = [start + step*direction for step in np.linspace(0.0, initial_distance, num_steps + 1)]
+        assert self.is_close(start, waypoints[0])
+        assert self.is_close(end, waypoints[-1])
+        return waypoints
+
+    def _walk_small_segment(self, start, end):
+        max_steps = 5000
+        motionless_max_steps = max_steps/10
+        segment_length = np.linalg.norm(start - end)
+        if not self.is_close(start):
+            self.change_robot_joints(start)
+            self.simulation_step()
+        is_start_valid = self.is_close(start) and not self.is_collision()
+        if not is_start_valid:
+            # if the segment is not free
+            return is_start_valid, 0.0, segment_length
+        is_free = True
+        self.set_movement_target(end)
+        steps = 0
+        motionless_steps = 0
+        while not (self.is_close(end) and not self.is_moving()):
+            (current_joints, current_speed), is_collision = self.simulation_step()
+            steps += 1
+            if is_collision:
+                is_free = False
+                break
+            if steps == max_steps:
+                distance_to_target = np.linalg.norm(np.array(current_joints) - np.array(end))
+                speed = np.linalg.norm(np.array(current_speed))
+                print_and_log('segment took too long, aborting for collision. distance to target {}, speed {}'.format(
+                    distance_to_target, speed
+                ))
+                print_and_log('start {}'.format(start.tolist()))
+                print_and_log('end {}'.format(end.tolist()))
+                print_and_log('current {}'.format(np.array(current_joints).tolist()))
+                print_and_log('')
+                is_free = False
+                break
+            if motionless_steps == motionless_max_steps:
+                distance_to_target = np.linalg.norm(np.array(current_joints) - np.array(end))
+                speed = np.linalg.norm(np.array(current_speed))
+                print_and_log('segment motionless, aborting for collision. distance to target {}, speed {}'.format(
+                    distance_to_target, speed
+                ))
+                print_and_log('start {}'.format(start.tolist()))
+                print_and_log('end {}'.format(end.tolist()))
+                print_and_log('current {}'.format(np.array(current_joints).tolist()))
+                print_and_log('')
+                is_free = False
+                break
+            if not self.is_moving():
+                motionless_steps += 1
+            else:
+                motionless_steps = 0
+        if is_free:
+            free_length = segment_length
+            collision_length = 0.0
+        else:
+            free_length = 0.0
+            collision_length = segment_length
+        return is_start_valid, free_length, collision_length

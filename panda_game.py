@@ -3,7 +3,6 @@ import multiprocessing
 import queue
 import time
 
-from log_utils import print_and_log
 from panda_scene_manager import PandaSceneManager
 from rl_interface import AbstractMotionPlanningGame
 
@@ -163,77 +162,13 @@ class GameWorker(multiprocessing.Process):
         start_ = PandaGame._virtual_to_real_state(truncated_start, self.panda_scene_manager)
         end_ = PandaGame._virtual_to_real_state(truncated_end, self.panda_scene_manager)
 
-        # partition to waypoints
-        waypoints = self._get_waypoints(start_, end_)
-        # we want to get is_goal_valid by moving in the "segment" [end_, end_]
-        waypoints.append(end_)
+        is_start_valid, is_goal_valid, sum_free, sum_collision = self.panda_scene_manager.walk_between_waypoints(
+            start_, end_)
 
-        # check each waypoint
-        sum_free = 0.0
-        sum_collision = 0.0
-        is_start_valid = truncated_distance_start == 0.0
-        is_goal_valid = truncated_distance_end == 0.0
-        for waypoint_index in range(len(waypoints)-1):
-            is_start_waypoint_valid, free_length, collision_length = self._walk_small_segment(
-                waypoints[waypoint_index], waypoints[waypoint_index+1]
-            )
-            if waypoint_index == 0:
-                is_start_valid = is_start_valid and is_start_waypoint_valid
-            if waypoint_index == len(waypoints)-2:
-                is_goal_valid = is_goal_valid and is_start_waypoint_valid
-            sum_free += free_length
-            sum_collision += collision_length
+        is_start_valid = is_start_valid and (truncated_distance_start == 0.0)
+        is_goal_valid = is_goal_valid and (truncated_distance_end == 0.0)
 
         sum_collision += truncated_distance_start + truncated_distance_end
         return start, end, is_start_valid, is_goal_valid, sum_free, sum_collision
 
-    def _get_waypoints(self, start, end):
-        max_step = self.panda_scene_manager.position_sensitivity * 5000
-        initial_distance = np.linalg.norm(end - start)
-        num_steps = int(np.ceil(initial_distance / max_step))
 
-        direction = end - start
-        direction = direction / np.linalg.norm(direction)
-        waypoints = [start + step*direction for step in np.linspace(0.0, initial_distance, num_steps + 1)]
-        assert self.panda_scene_manager.is_close(start, waypoints[0])
-        assert self.panda_scene_manager.is_close(end, waypoints[-1])
-        return waypoints
-
-    def _walk_small_segment(self, start, end):
-        segment_length = np.linalg.norm(start - end)
-        if not self.panda_scene_manager.is_close(start):
-            self.panda_scene_manager.change_robot_joints(start)
-            self.panda_scene_manager.simulation_step()
-        is_start_valid = self.panda_scene_manager.is_close(start) and not self.panda_scene_manager.is_collision()
-        if not is_start_valid:
-            # if the segment is not free
-            return is_start_valid, 0.0, segment_length
-        is_free = True
-        self.panda_scene_manager.set_movement_target(end)
-        steps = 0
-        while not (self.panda_scene_manager.is_close(end) and not self.panda_scene_manager.is_moving()):
-            is_collision = self.panda_scene_manager.simulation_step()[1]
-            steps += 1
-            if is_collision:
-                is_free = False
-                break
-            if steps == 50000:
-                current_joints, current_speed = self.panda_scene_manager.get_robot_state()
-                distance_to_target = np.linalg.norm(np.array(current_joints) - np.array(end))
-                speed = np.linalg.norm(np.array(current_speed))
-                print_and_log('segment took too long, aborting for collision. distance to target {}, speed {}'.format(
-                    distance_to_target, speed
-                ))
-                print_and_log('start {}'.format(start.tolist()))
-                print_and_log('end {}'.format(end.tolist()))
-                print_and_log('current {}'.format(np.array(current_joints).tolist()))
-                print_and_log('')
-                is_free = False
-                break
-        if is_free:
-            free_length = segment_length
-            collision_length = 0.0
-        else:
-            free_length = 0.0
-            collision_length = segment_length
-        return is_start_valid, free_length, collision_length
