@@ -76,7 +76,11 @@ class AbstractMotionPlanningGame:
 
     @staticmethod
     def get_params_from_config(config):
-        return os.path.join(get_base_directory(), 'scenario_params', config['general']['scenario'], 'params.pkl')
+        return AbstractMotionPlanningGame.get_params_from_scenario(config['general']['scenario'])
+
+    @staticmethod
+    def get_params_from_scenario(scenario):
+        return os.path.join(get_base_directory(), 'scenario_params', scenario, 'params.pkl')
 
     def get_valid_states(self, states):
         return np.maximum(self.lower, np.minimum(self.upper, states))

@@ -1,4 +1,5 @@
 import os
+import time
 
 import pybullet as p
 import numpy as np
@@ -167,7 +168,8 @@ class PandaSceneManager:
         if np.linalg.norm(velocities) > 0.1:
             return True
 
-    def walk_between_waypoints(self, start, end, max_waypoint_sensetivity_intervals=5000):
+    def walk_between_waypoints(self, start, end, max_waypoint_sensetivity_intervals=5000,
+                               teleport_between_waypoints=True, time_between_frames=0.0):
         # partition to waypoints
         waypoints = self._get_waypoints(start, end, max_waypoint_sensetivity_intervals)
         # we want to get is_goal_valid by moving in the "segment" [end_, end_]
@@ -180,7 +182,8 @@ class PandaSceneManager:
 
         for waypoint_index in range(len(waypoints) - 1):
             is_start_waypoint_valid, free_length, collision_length = self._walk_small_segment(
-                waypoints[waypoint_index], waypoints[waypoint_index + 1]
+                waypoints[waypoint_index], waypoints[waypoint_index + 1], teleport_between_waypoints,
+                time_between_frames
             )
             if waypoint_index == 0:
                 is_start_valid = is_start_waypoint_valid
@@ -203,17 +206,20 @@ class PandaSceneManager:
         assert self.is_close(end, waypoints[-1])
         return waypoints
 
-    def _walk_small_segment(self, start, end):
+    def _walk_small_segment(self, start, end, teleport_between_waypoints, time_between_frames):
         max_steps = 5000
         motionless_max_steps = max_steps/10
         segment_length = np.linalg.norm(start - end)
-        if not self.is_close(start):
-            self.change_robot_joints(start)
-            self.simulation_step()
-        is_start_valid = self.is_close(start) and not self.is_collision()
-        if not is_start_valid:
-            # if the segment is not free
-            return is_start_valid, 0.0, segment_length
+        if teleport_between_waypoints:
+            if not self.is_close(start):
+                self.change_robot_joints(start)
+                self.simulation_step()
+            is_start_valid = self.is_close(start) and not self.is_collision()
+            if not is_start_valid:
+                # if the segment is not free
+                return is_start_valid, 0.0, segment_length
+        else:
+            is_start_valid = True
         is_free = True
         self.set_movement_target(end)
         steps = 0
@@ -252,6 +258,8 @@ class PandaSceneManager:
                 motionless_steps += 1
             else:
                 motionless_steps = 0
+            if time_between_frames > 0.:
+                time.sleep(time_between_frames)
         if is_free:
             free_length = segment_length
             collision_length = 0.0

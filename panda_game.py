@@ -66,7 +66,7 @@ class PandaGame(AbstractMotionPlanningGame):
     def _is_free_state_in_manager(state, panda_scene_manager):
         if any(np.abs(state) > 1.0):
             return False
-        state_ = PandaGame._virtual_to_real_state(state, panda_scene_manager)
+        state_ = PandaGame.virtual_to_real_state(state, panda_scene_manager)
         panda_scene_manager.change_robot_joints(state_)
         is_collision = panda_scene_manager.simulation_step()[1]
         if not panda_scene_manager.is_close(state_):
@@ -85,11 +85,11 @@ class PandaGame(AbstractMotionPlanningGame):
         lower = np.array(self.panda_scene_manager.joints_lower_bounds)
         upper = np.array(self.panda_scene_manager.joints_upper_bounds)
 
-        g = self._real_to_virtual_state(upper, self.panda_scene_manager)
+        g = self.real_to_virtual_state(upper, self.panda_scene_manager)
         assert self.is_free_state(g)
 
         joints = 0.5 * upper + 0.5 * lower
-        s = self._real_to_virtual_state(joints, self.panda_scene_manager)
+        s = self.real_to_virtual_state(joints, self.panda_scene_manager)
         assert self.is_free_state(s)
 
         return [(s, g)]
@@ -109,7 +109,7 @@ class PandaGame(AbstractMotionPlanningGame):
         return results
 
     @staticmethod
-    def _virtual_to_real_state(s, panda_scene_manager):
+    def virtual_to_real_state(s, panda_scene_manager):
         lower = np.array(panda_scene_manager.joints_lower_bounds)
         upper = np.array(panda_scene_manager.joints_upper_bounds)
         s_ = np.array(s)
@@ -118,7 +118,7 @@ class PandaGame(AbstractMotionPlanningGame):
         return s_
 
     @staticmethod
-    def _real_to_virtual_state(s, panda_scene_manager):
+    def real_to_virtual_state(s, panda_scene_manager):
         lower = np.array(panda_scene_manager.joints_lower_bounds)
         upper = np.array(panda_scene_manager.joints_upper_bounds)
         denom = upper - lower
@@ -159,8 +159,8 @@ class GameWorker(multiprocessing.Process):
         truncated_start, truncated_distance_start = PandaGame._truncate_virtual_state(start)
         truncated_end, truncated_distance_end = PandaGame._truncate_virtual_state(end)
 
-        start_ = PandaGame._virtual_to_real_state(truncated_start, self.panda_scene_manager)
-        end_ = PandaGame._virtual_to_real_state(truncated_end, self.panda_scene_manager)
+        start_ = PandaGame.virtual_to_real_state(truncated_start, self.panda_scene_manager)
+        end_ = PandaGame.virtual_to_real_state(truncated_end, self.panda_scene_manager)
 
         is_start_valid, is_goal_valid, sum_free, sum_collision = self.panda_scene_manager.walk_between_waypoints(
             start_, end_)
