@@ -85,7 +85,7 @@ def run_for_config(config):
                 gpu_options=tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=config['general']['gpu_usage'])
             )
     ) as sess:
-        sess.run(tf.global_variables_initializer())
+        sess.run(tf.compat.v1.global_variables_initializer())
 
         policy_function = lambda starts, goals, level, is_train: network.predict_policy(
             starts, goals, level, sess, is_train)
