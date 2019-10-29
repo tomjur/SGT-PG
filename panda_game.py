@@ -82,16 +82,32 @@ class PandaGame(AbstractMotionPlanningGame):
 
     def get_fixed_start_goal_pairs(self):
         # for now a long straight movement
-        lower = np.array(self.panda_scene_manager.joints_lower_bounds)
-        upper = np.array(self.panda_scene_manager.joints_upper_bounds)
+        lower = np.array(self.panda_scene_manager.joints_lower_bounds).copy()
+        upper = np.array(self.panda_scene_manager.joints_upper_bounds).copy()
 
-        g = self.real_to_virtual_state(upper, self.panda_scene_manager)
-        assert self.is_free_state(g)
+        scenario = self.config['general']['scenario']
+        if scenario == 'panda_no_obs':
+            s = self.real_to_virtual_state(0.5 * upper + 0.5 * lower, self.panda_scene_manager)
+            g = self.real_to_virtual_state(upper.copy(), self.panda_scene_manager)
+        elif scenario == 'panda_easy':
+            s = upper.copy()
+            s[1] += lower[1]
+            s[1] *= 0.5
+            s[3] += lower[3]
+            s[3] *= 0.5
+            s = self.real_to_virtual_state(s, self.panda_scene_manager)
 
-        joints = 0.5 * upper + 0.5 * lower
-        s = self.real_to_virtual_state(joints, self.panda_scene_manager)
+            g = upper.copy()
+            g[0] = 0.7 * upper[0] + 0.3 * lower[0]
+            g[2] = 0.1 * upper[2] + 0.9 * lower[2]
+            g[3] = 0.4 * upper[3] + 0.6 * lower[3]
+            g[4] = 0.7 * upper[4] + 0.3 * lower[4]
+            g = self.real_to_virtual_state(g, self.panda_scene_manager)
+        else:
+            assert False
+
         assert self.is_free_state(s)
-
+        assert self.is_free_state(g)
         return [(s, g)]
 
     def check_terminal_segments(self, cost_queries):
