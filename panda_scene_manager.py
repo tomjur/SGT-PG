@@ -188,13 +188,40 @@ class PandaSceneManager:
         velocities = self.get_robot_state()[1]
         return np.linalg.norm(velocities)
 
+    def walk_between_waypoints(
+            self, start, end, max_waypoint_sensetivity_intervals=20,
+            teleport_between_waypoints=True, time_between_frames=0.0
+    ):
+        # partition to waypoints
+        waypoints = self._get_waypoints(start, end, max_waypoint_sensetivity_intervals)
+        # we want to get is_goal_valid by moving in the "segment" [end_, end_]
+        waypoints.append(end)
+
+        # check each waypoint
+        sum_free = 0.0
+        sum_collision = 0.0
+        is_start_valid, is_goal_valid = None, None
+
+        for waypoint_index in range(len(waypoints) - 1):
+            start_joints = waypoints[waypoint_index] if teleport_between_waypoints else None
+            is_start_waypoint_valid, free_length, collision_length, _ = self.bounded_jerk_motion_model_predictive_control(
+                waypoints[waypoint_index+1], required_start_joints=start_joints, time_between_frames=time_between_frames
+            )
+            if waypoint_index == 0:
+                is_start_valid = is_start_waypoint_valid
+            if waypoint_index == len(waypoints) - 2:
+                is_goal_valid = is_start_waypoint_valid
+            sum_free += free_length
+            sum_collision += collision_length
+
+        return is_start_valid, is_goal_valid, sum_free, sum_collision
+
     def bounded_jerk_motion_model_predictive_control(
-            self, target_joints, maximal_jerk,
+            self, target_joints,
+            maximal_jerk=(100., 100., 100., 100., 100., 100., 100., 100., 100.),
             max_forces=(500., 500., 500., 500., 500., 500., 500., 10., 10.),
             kd_position_coeff=(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0),
-            # kd_position_coeff=(0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3),
             kd_velocity_coeff=(0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1),
-            # kd_velocity_coeff=(1., 1., 1., 1., 1., 1., 1., 1., 1.),
             time_between_frames=0., required_start_joints=None
     ):
         assert len(target_joints) == len(maximal_jerk) == self.number_of_joints
@@ -213,17 +240,18 @@ class PandaSceneManager:
         time_step = engine_parameters['fixedTimeStep']
         # check if initial state is collision
         if self.is_collision():
-            return False, 0.0, segment_length
+            return False, 0.0, segment_length, [(starting_joints, starting_velocities)]
 
         # these will hold the budget of steps the simulation is allowed to execute
         max_steps = None
         motionless_max_steps = None
 
-        steps = 0
         motionless_steps = 0
         is_free = True
+        visited_states = []
         while not (self.is_close(target_joints) and not self.is_moving()):
-            joints, velocities = self.get_robot_state()
+            visited_states.append(self.get_robot_state())
+            joints, velocities = visited_states[-1]
             # the required time is the time maximal required time by any joint
             time_required = np.max([
                 PandaSceneManager._find_minimal_time(
@@ -244,12 +272,11 @@ class PandaSceneManager:
             self.set_movement_target(next_joints, next_joints, max_forces, kd_position_coeff, kd_velocity_coeff)
             # execute and observe the result
             (current_joints, current_speed), is_collision = self.simulation_step()
-            # steps += 1
             if is_collision:
                 is_free = False
                 break
-            if steps == max_steps or motionless_steps == motionless_max_steps:
-                if steps == max_steps:
+            if (len(visited_states) + 1) == max_steps or motionless_steps == motionless_max_steps:
+                if (len(visited_states) + 1) == max_steps:
                     print_and_log('segment too long, aborting for collision. distance to target {}, speed {}'.format(
                         self.get_distance(target_joints, current_joints), self.get_current_speed()
                     ))
@@ -275,7 +302,7 @@ class PandaSceneManager:
         else:
             free_length = 0.0
             collision_length = segment_length
-        return True, free_length, collision_length
+        return True, free_length, collision_length, visited_states
 
     @staticmethod
     def _compute_target_position_velocity(current_joint, target_joint, current_velocity, time_step, end_time):
@@ -303,37 +330,6 @@ class PandaSceneManager:
     def _compute_a3(current_joint, target_joint, current_velocity, end_time):
         return (current_velocity * end_time + 2. * current_joint - 2. * target_joint) / (end_time ** 3)
 
-    def walk_between_waypoints(
-            self, start, end, max_waypoint_sensetivity_intervals=20,
-            max_jerk=(100., 100., 100., 100., 100., 100., 100., 100., 100.),
-            teleport_between_waypoints=True, time_between_frames=0.0
-    ):
-        assert len(max_jerk) == self.number_of_joints
-
-        # partition to waypoints
-        waypoints = self._get_waypoints(start, end, max_waypoint_sensetivity_intervals)
-        # we want to get is_goal_valid by moving in the "segment" [end_, end_]
-        waypoints.append(end)
-
-        # check each waypoint
-        sum_free = 0.0
-        sum_collision = 0.0
-        is_start_valid, is_goal_valid = None, None
-
-        for waypoint_index in range(len(waypoints) - 1):
-            start_joints = waypoints[waypoint_index] if teleport_between_waypoints else None
-            is_start_waypoint_valid, free_length, collision_length = self.bounded_jerk_motion_model_predictive_control(
-                waypoints[waypoint_index+1], [10000.]*9, required_start_joints=start_joints, time_between_frames=time_between_frames
-            )
-            if waypoint_index == 0:
-                is_start_valid = is_start_waypoint_valid
-            if waypoint_index == len(waypoints) - 2:
-                is_goal_valid = is_start_waypoint_valid
-            sum_free += free_length
-            sum_collision += collision_length
-
-        return is_start_valid, is_goal_valid, sum_free, sum_collision
-
     def _get_waypoints(self, start, end, max_waypoint_sensetivity_intervals):
         max_step = self.position_sensitivity * max_waypoint_sensetivity_intervals
         initial_distance = np.linalg.norm(end - start)
@@ -346,64 +342,68 @@ class PandaSceneManager:
         assert self.is_close(end, waypoints[-1])
         return waypoints
 
-    # def _walk_small_segment(self, start, end, teleport_between_waypoints, time_between_frames):
-    #     max_steps = 5000
-    #     motionless_max_steps = max_steps/10
-    #     segment_length = np.linalg.norm(start - end)
-    #     if teleport_between_waypoints:
-    #         if not self.is_close(start):
-    #             self.change_robot_joints(start)
-    #             self.simulation_step()
-    #         is_start_valid = self.is_close(start) and not self.is_collision()
-    #         if not is_start_valid:
-    #             # if the segment is not free
-    #             return is_start_valid, 0.0, segment_length
-    #     else:
-    #         is_start_valid = True
-    #     is_free = True
-    #     self.set_movement_target(end)
-    #     steps = 0
-    #     motionless_steps = 0
-    #     while not (self.is_close(end) and not self.is_moving()):
-    #         (current_joints, current_speed), is_collision = self.simulation_step()
-    #         steps += 1
-    #         if is_collision:
-    #             is_free = False
-    #             break
-    #         if steps == max_steps:
-    #             distance_to_target = np.linalg.norm(np.array(current_joints) - np.array(end))
-    #             speed = np.linalg.norm(np.array(current_speed))
-    #             print_and_log('segment took too long, aborting for collision. distance to target {}, speed {}'.format(
-    #                 distance_to_target, speed
-    #             ))
-    #             print_and_log('start {}'.format(start.tolist()))
-    #             print_and_log('end {}'.format(end.tolist()))
-    #             print_and_log('current {}'.format(np.array(current_joints).tolist()))
-    #             print_and_log('')
-    #             is_free = False
-    #             break
-    #         if motionless_steps == motionless_max_steps:
-    #             distance_to_target = np.linalg.norm(np.array(current_joints) - np.array(end))
-    #             speed = np.linalg.norm(np.array(current_speed))
-    #             print_and_log('segment motionless, aborting for collision. distance to target {}, speed {}'.format(
-    #                 distance_to_target, speed
-    #             ))
-    #             print_and_log('start {}'.format(start.tolist()))
-    #             print_and_log('end {}'.format(end.tolist()))
-    #             print_and_log('current {}'.format(np.array(current_joints).tolist()))
-    #             print_and_log('')
-    #             is_free = False
-    #             break
-    #         if not self.is_moving():
-    #             motionless_steps += 1
-    #         else:
-    #             motionless_steps = 0
-    #         if time_between_frames > 0.:
-    #             time.sleep(time_between_frames)
-    #     if is_free:
-    #         free_length = segment_length
-    #         collision_length = 0.0
-    #     else:
-    #         free_length = 0.0
-    #         collision_length = segment_length
-    #     return is_start_valid, free_length, collision_length
+    def walk_small_segment(
+            self, target_joints, time_between_frames=0., required_start_joints=None, max_steps=5000,
+            max_forces=(500., 500., 500., 500., 500., 500., 500., 10., 10.),
+            position_coeff=(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0),
+            velocity_coeff=(0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1)
+    ):
+
+        motionless_max_steps = max_steps/10
+
+        assert len(target_joints) == self.number_of_joints
+
+        if required_start_joints is not None:
+            if not self.is_close(required_start_joints):
+                self.change_robot_joints(required_start_joints)
+                self.simulation_step()
+
+        # get the current robot state
+        starting_joints, starting_velocities = self.get_robot_state()
+        segment_length = self.get_distance(target_joints, starting_joints)
+
+        # check if initial state is collision
+        if self.is_collision():
+            return False, 0.0, segment_length, [(starting_joints, starting_velocities)]
+
+        # these will hold the budget of steps the simulation is allowed to execute
+        is_free = True
+        visited_states = []
+        motionless_steps = 0
+        self.set_movement_target(
+            target_joints, max_forces=max_forces, position_coeff=position_coeff, velocity_coeff=velocity_coeff)
+        while not (self.is_close(target_joints) and not self.is_moving()):
+            visited_states.append(self.get_robot_state())
+            # execute and observe the result
+            (current_joints, current_speed), is_collision = self.simulation_step()
+            if is_collision:
+                is_free = False
+                break
+            if (len(visited_states) + 1) == max_steps or motionless_steps == motionless_max_steps:
+                if (len(visited_states) + 1) == max_steps:
+                    print_and_log('segment too long, aborting for collision. distance to target {}, speed {}'.format(
+                        self.get_distance(target_joints, current_joints), self.get_current_speed()
+                    ))
+                else:
+                    print_and_log('segment motionless, aborting for collision. distance to target {}, speed {}'.format(
+                        self.get_distance(target_joints, current_joints), self.get_current_speed()
+                    ))
+                print_and_log('start configuration {}, starting speeds {}'.format(starting_joints, starting_velocities))
+                print_and_log('end {}'.format(target_joints.tolist()))
+                print_and_log('current configuration {}, current speeds {}'.format(current_joints, current_speed))
+                print_and_log('')
+                is_free = False
+                break
+            if not self.is_moving():
+                motionless_steps += 1
+            else:
+                motionless_steps = 0
+            if time_between_frames > 0.:
+                time.sleep(time_between_frames)
+        if is_free:
+            free_length = segment_length
+            collision_length = 0.0
+        else:
+            free_length = 0.0
+            collision_length = segment_length
+        return True, free_length, collision_length, visited_states
