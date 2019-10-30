@@ -1,6 +1,7 @@
 import numpy as np
 import time
 import random
+import matplotlib.pyplot as plt
 
 from panda_scene_manager import PandaSceneManager
 
@@ -76,3 +77,11 @@ for j, v in visited_states:
     print('')
 
 print('required terminal joints: {}'.format(joints2))
+
+
+
+for i in range(9):
+    data = [j[i] for j, v in visited_states]
+    plt.plot(data)
+    plt.show()
+
