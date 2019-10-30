@@ -25,7 +25,7 @@ class PandaGame(AbstractMotionPlanningGame):
 
     @staticmethod
     def _get_number_of_workers(config):
-        # return 1
+        return 1  # for debug: set one worker
         # get configuration values
         test_episodes = config['general']['test_episodes']
         train_episodes_per_cycle = config['general']['train_episodes_per_cycle']
@@ -39,19 +39,19 @@ class PandaGame(AbstractMotionPlanningGame):
 
     @staticmethod
     def get_scene_manager(config):
-        panda_scene_manager = PandaSceneManager(use_ui=False)
-        PandaGame.add_obstacles(config, panda_scene_manager)
+        obstacles_definitions_list = PandaGame._get_obstacle_definitions(config)
+        panda_scene_manager = PandaSceneManager(use_ui=False, obstacle_definitions=obstacles_definitions_list)
         return panda_scene_manager
 
     @staticmethod
-    def add_obstacles(config, panda_scene_manager):
+    def _get_obstacle_definitions(config):
         params_file = AbstractMotionPlanningGame.get_params_from_config(config)
         if 'no_obs' in params_file:
             obstacles_definitions_list = []
         else:
             with open(params_file, 'r') as f:
                 obstacles_definitions_list = f.readlines()
-        panda_scene_manager.add_obstacles(obstacles_definitions_list)
+        return obstacles_definitions_list
 
     @staticmethod
     def _truncate_virtual_state(state):
@@ -170,7 +170,6 @@ class GameWorker(multiprocessing.Process):
 
     def check_terminal_segment(self, start, end):
         self.panda_scene_manager.reset_simulation()
-        PandaGame.add_obstacles(self.config, self.panda_scene_manager)
         # check the end points
         truncated_start, truncated_distance_start = PandaGame._truncate_virtual_state(start)
         truncated_end, truncated_distance_end = PandaGame._truncate_virtual_state(end)
@@ -186,5 +185,3 @@ class GameWorker(multiprocessing.Process):
 
         sum_collision += truncated_distance_start + truncated_distance_end
         return start, end, is_start_valid, is_goal_valid, sum_free, sum_collision
-
-
