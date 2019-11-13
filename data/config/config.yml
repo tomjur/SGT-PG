@@ -3,28 +3,30 @@ general:
 #  scenario: 'point_robot_easy'
 #  scenario: 'point_robot_easy2'
 #  scenario: 'point_robot_easy2_transposed'
-  scenario: 'point_robot_box_0.2'
+#  scenario: 'point_robot_box_0.2'
 #  scenario: 'point_robot_box_0.8'
 #  scenario: 'point_robot_box_1.6'
 #  scenario: 'point_robot_corridor'
 #  scenario: 'point_robot_hard_corridors'
 #  scenario: panda_no_obs
+  scenario: panda_easy
   gpu_usage: 0.2
   write_summaries_every: 7
   training_cycles: 30000
-  train_episodes_per_cycle: 500
-#  train_episodes_per_cycle: 10
+#  train_episodes_per_cycle: 500
+  train_episodes_per_cycle: 50
 #  test_episodes: 1
   test_episodes: 100
   save_every_cycles: 1000000
   cycles_per_trajectory_print: 1000000
   test_frequency: 3
+#  test_frequency: 1
 #  weight_printing_frequency: 1000
   weight_printing_frequency: 0
 
 cost:
   collision_cost: 10.0
-  is_constant_collision_cost: True
+  is_constant_collision_cost: False
   free_cost: 1.0
   is_constant_free_cost: False
   type: 'linear'
@@ -42,7 +44,7 @@ model:
   batch_size: 20000
   reset_best_every: 0
 #  reset_best_every: 50
-  decrease_learn_rate_if_static_success: 1000
+  decrease_learn_rate_if_static_success: 500
   restore_on_decrease: True
 #  restore_on_decrease: False
   stop_training_after_learn_rate_decrease: 3
@@ -52,15 +54,15 @@ model:
 #  repeat_train_trajectories: 3
 
 policy:
-  learning_rate: 0.05
+  learning_rate: 0.005
   learning_rate_decrease_rate: 1.
 #  learning_rate_decrease_rate: 0.8
   learning_rate_minimum: 0.0005
   gradient_limit: 0.0
 #  include_middle_state_as_input: True
   include_middle_state_as_input: False
-  layers: [5, 5]
-#  layers: [10, 10, 10]
+#  layers: [5, 5]
+  layers: [20, 20, 20]
 #  activation: 'elu'
 #  activation: 'relu'
   activation: 'tanh'

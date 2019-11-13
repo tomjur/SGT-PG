@@ -9,10 +9,11 @@ from panda_scene_manager import PandaSceneManager
 panda_scene_manager = PandaSceneManager(use_ui=True)
 lower = np.array(panda_scene_manager.joints_lower_bounds)
 upper = np.array(panda_scene_manager.joints_upper_bounds)
-sleep_time = 0.05
+sleep_time = 0.1
 
 
-max_forces = (500., 500., 500., 500., 500., 500., 500., 10., 10.)
+max_forces = (500., 500., 500., 500., 50., 50., 50., 1., 1.)
+# max_forces = (500., 500., 500., 500., 500., 500., 500., 10., 10.)
 position_coeff = (0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3)
 velocity_coeff = (1., 1., 1., 1., 1., 1., 1., 1., 1.)
 # max_jerk = (100., 100., 100., 100., 100., 100., 100., 100., 100.)
@@ -36,12 +37,6 @@ def get_random_joints(upper, lower):
     return [r * lower[i] + (1.-r) * upper[i] for i, r in enumerate(random_relative)]
 
 
-# joints1 = 0.3 * lower + 0.7 * upper
-# joints2 = 0.5 * lower + 0.5 * upper
-# alpha = 0.95
-# joint_index = 3
-# joints2[joint_index] = alpha * lower[joint_index] + (1.-alpha) * upper[joint_index]
-
 joints1 = get_random_joints(upper, lower)
 joints2 = get_random_joints(upper, lower)
 
@@ -63,8 +58,9 @@ time.sleep(sleep_time)
 # )[-1]
 
 _, free_length, collision_length, visited_states = panda_scene_manager.walk_small_segment(
-    joints2, time_between_frames=sleep_time,  max_forces=max_forces, position_coeff=position_coeff,
-    velocity_coeff=velocity_coeff
+joints2, time_between_frames=sleep_time,
+    # joints2, time_between_frames=sleep_time,  max_forces=max_forces, position_coeff=position_coeff,
+    # velocity_coeff=velocity_coeff
 )
 
 print('free length {} collision length {}'.format(free_length, collision_length))
@@ -79,9 +75,11 @@ for j, v in visited_states:
 print('required terminal joints: {}'.format(joints2))
 
 
-
+fig, axs = plt.subplots(3, 3)
 for i in range(9):
-    data = [j[i] for j, v in visited_states]
-    plt.plot(data)
-    plt.show()
-
+    row = int(i / 3)
+    col = int(i % 3)
+    y = [j[i] for j, v in visited_states]
+    axs[row, col].plot(y)
+    axs[row, col].set_title('joint {}'.format(i))
+plt.show()

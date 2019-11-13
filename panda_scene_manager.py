@@ -60,6 +60,7 @@ class PandaSceneManager:
             os.path.join(franka_panda_dir, 'panda_arm_hand_modified_2.urdf'), self.robot_base, useFixedBase=True,
             physicsClientId=self.my_id, flags=p.URDF_USE_SELF_COLLISION | p.URDF_USE_SELF_COLLISION_EXCLUDE_PARENT
         )
+        # p.setTimeStep(1. / 480., physicsClientId=self.my_id)
         p.setCollisionFilterPair(self.robot, self.robot, 6, 8, 0, physicsClientId=self.my_id)
 
         # camera
@@ -108,18 +109,23 @@ class PandaSceneManager:
         return list(zip(*joint_position_velocity_pairs))
 
     def set_movement_target(
-            self, target_joints, target_velocities=(0., 0., 0., 0., 0., 0., 0., 0., 0.),
-            max_forces=(500., 500., 500., 500., 500., 500., 500., 10., 10.),
-            position_coeff=(0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3),
-            velocity_coeff=(1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000.)
+            self, target_joints,
+            # target_velocities=(0., 0., 0., 0., 0., 0., 0., 0., 0.),
+            # max_forces=(500., 500., 500., 500., 500., 500., 500., 10., 10.),
+            # position_coeff=(0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3),
+            # velocity_coeff=(1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000.)
     ):
-        assert len(target_joints) == len(target_velocities) == self.number_of_joints
-        assert len(max_forces) == len(position_coeff) == len(velocity_coeff) == self.number_of_joints
+        assert len(target_joints) == self.number_of_joints
+        # assert len(target_joints) == len(target_velocities) == self.number_of_joints
+        # assert len(max_forces) == len(position_coeff) == len(velocity_coeff) == self.number_of_joints
         p.setJointMotorControlArray(
-            self.robot, self._external_to_internal_joint_index, p.POSITION_CONTROL, targetPositions=target_joints,
-            targetVelocities=target_velocities, positionGains=position_coeff,
-            # targetVelocities=target_velocities, forces=max_forces, positionGains=position_coeff,
-            velocityGains=velocity_coeff, physicsClientId=self.my_id
+            self.robot, self._external_to_internal_joint_index, p.POSITION_CONTROL,
+            targetPositions=target_joints,
+            # targetVelocities=target_velocities,
+            # forces=max_forces,
+            # positionGains=position_coeff,
+            # velocityGains=velocity_coeff,
+            physicsClientId=self.my_id
         )
 
     def _get_joints_properties(self):
@@ -192,8 +198,9 @@ class PandaSceneManager:
             self, start, end, max_waypoint_sensetivity_intervals=20,
             teleport_between_waypoints=True, time_between_frames=0.0
     ):
+        assert len(start) == len(end) == self.number_of_joints
         # partition to waypoints
-        waypoints = self._get_waypoints(start, end, max_waypoint_sensetivity_intervals)
+        waypoints = self._get_waypoints(np.array(start), np.array(end), max_waypoint_sensetivity_intervals)
         # we want to get is_goal_valid by moving in the "segment" [end_, end_]
         waypoints.append(end)
 
@@ -202,11 +209,17 @@ class PandaSceneManager:
         sum_collision = 0.0
         is_start_valid, is_goal_valid = None, None
 
+        visited_by_waypoint = []
+
         for waypoint_index in range(len(waypoints) - 1):
             start_joints = waypoints[waypoint_index] if teleport_between_waypoints else None
-            is_start_waypoint_valid, free_length, collision_length, _ = self.bounded_jerk_motion_model_predictive_control(
-                waypoints[waypoint_index+1], required_start_joints=start_joints, time_between_frames=time_between_frames
+            is_start_waypoint_valid, free_length, collision_length, visited_states = self.walk_small_segment(
+                waypoints[waypoint_index+1], time_between_frames=time_between_frames,
+                required_start_joints=start_joints, max_steps=500
             )
+            # is_start_waypoint_valid, free_length, collision_length, _ = self.bounded_jerk_motion_model_predictive_control(
+            #     waypoints[waypoint_index+1], required_start_joints=start_joints, time_between_frames=time_between_frames
+            # )
             if waypoint_index == 0:
                 is_start_valid = is_start_waypoint_valid
             if waypoint_index == len(waypoints) - 2:
@@ -214,121 +227,123 @@ class PandaSceneManager:
             sum_free += free_length
             sum_collision += collision_length
 
-        return is_start_valid, is_goal_valid, sum_free, sum_collision
+            visited_by_waypoint.append(visited_states)
 
-    def bounded_jerk_motion_model_predictive_control(
-            self, target_joints,
-            maximal_jerk=(100., 100., 100., 100., 100., 100., 100., 100., 100.),
-            max_forces=(500., 500., 500., 500., 500., 500., 500., 10., 10.),
-            kd_position_coeff=(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0),
-            kd_velocity_coeff=(0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1),
-            time_between_frames=0., required_start_joints=None
-    ):
-        assert len(target_joints) == len(maximal_jerk) == self.number_of_joints
+        return is_start_valid, is_goal_valid, sum_free, sum_collision, visited_by_waypoint
 
-        if required_start_joints is not None:
-            if not self.is_close(required_start_joints):
-                self.change_robot_joints(required_start_joints)
-                self.simulation_step()
-
-        # get the current robot state
-        starting_joints, starting_velocities = self.get_robot_state()
-        segment_length = self.get_distance(target_joints, starting_joints)
-
-        # get the simulation time step
-        engine_parameters = p.getPhysicsEngineParameters(physicsClientId=self.my_id)
-        time_step = engine_parameters['fixedTimeStep']
-        # check if initial state is collision
-        if self.is_collision():
-            return False, 0.0, segment_length, [(starting_joints, starting_velocities)]
-
-        # these will hold the budget of steps the simulation is allowed to execute
-        max_steps = None
-        motionless_max_steps = None
-
-        motionless_steps = 0
-        is_free = True
-        visited_states = []
-        while not (self.is_close(target_joints) and not self.is_moving()):
-            visited_states.append(self.get_robot_state())
-            joints, velocities = visited_states[-1]
-            # the required time is the time maximal required time by any joint
-            time_required = np.max([
-                PandaSceneManager._find_minimal_time(
-                    joints[i], target_joints[i], velocities[i], time_step, maximal_jerk[i])
-                for i in range(self.number_of_joints)
-            ])
-            # compute the allowed budget of steps
-            if max_steps is None:
-                max_steps = int(time_required / time_step + 1) * 2
-                motionless_max_steps = int(max_steps / 10.) + 1
-            # the target of the next simulation step
-            targets = [
-                PandaSceneManager._compute_target_position_velocity(
-                    joints[i], target_joints[i], velocities[i], time_step, time_required)
-                for i in range(self.number_of_joints)
-            ]
-            next_joints, next_velocities = zip(*targets)
-            self.set_movement_target(next_joints, next_joints, max_forces, kd_position_coeff, kd_velocity_coeff)
-            # execute and observe the result
-            (current_joints, current_speed), is_collision = self.simulation_step()
-            if is_collision:
-                is_free = False
-                break
-            if (len(visited_states) + 1) == max_steps or motionless_steps == motionless_max_steps:
-                if (len(visited_states) + 1) == max_steps:
-                    print_and_log('segment too long, aborting for collision. distance to target {}, speed {}'.format(
-                        self.get_distance(target_joints, current_joints), self.get_current_speed()
-                    ))
-                else:
-                    print_and_log('segment motionless, aborting for collision. distance to target {}, speed {}'.format(
-                        self.get_distance(target_joints, current_joints), self.get_current_speed()
-                    ))
-                print_and_log('start configuration {}, starting speeds {}'.format(starting_joints, starting_velocities))
-                print_and_log('end {}'.format(target_joints.tolist()))
-                print_and_log('current configuration {}, current speeds {}'.format(current_joints, current_speed))
-                print_and_log('')
-                is_free = False
-                break
-            if not self.is_moving():
-                motionless_steps += 1
-            else:
-                motionless_steps = 0
-            if time_between_frames > 0.:
-                time.sleep(time_between_frames)
-        if is_free:
-            free_length = segment_length
-            collision_length = 0.0
-        else:
-            free_length = 0.0
-            collision_length = segment_length
-        return True, free_length, collision_length, visited_states
-
-    @staticmethod
-    def _compute_target_position_velocity(current_joint, target_joint, current_velocity, time_step, end_time):
-        a0 = current_joint
-        a1 = current_velocity
-        a2 = PandaSceneManager._compute_a2(current_joint, target_joint, current_velocity, end_time)
-        a3 = PandaSceneManager._compute_a3(current_joint, target_joint, current_velocity, end_time)
-        position = a3 * time_step ** 3 + a2 * time_step ** 2 + a1 * time_step + a0
-        velocity = 3 * a3 * time_step ** 2 + 2 * a2 * time_step + a1
-        return position, velocity
-
-    @staticmethod
-    def _find_minimal_time(current_joint, target_joint, current_velocity, pybullet_step_time, constraint):
-        end_time = pybullet_step_time
-        while np.abs(6 * PandaSceneManager._compute_a3(
-                current_joint, target_joint, current_velocity, end_time)) > constraint:
-            end_time *= 2
-        return end_time
-
-    @staticmethod
-    def _compute_a2(current_joint, target_joint, current_velocity, end_time):
-        return (3. * target_joint - 3. * current_joint - 2. * current_velocity * end_time) / (end_time ** 2)
-
-    @staticmethod
-    def _compute_a3(current_joint, target_joint, current_velocity, end_time):
-        return (current_velocity * end_time + 2. * current_joint - 2. * target_joint) / (end_time ** 3)
+    # def bounded_jerk_motion_model_predictive_control(
+    #         self, target_joints,
+    #         maximal_jerk=(100., 100., 100., 100., 100., 100., 100., 100., 100.),
+    #         max_forces=(500., 500., 500., 500., 500., 500., 500., 10., 10.),
+    #         kd_position_coeff=(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0),
+    #         kd_velocity_coeff=(0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1),
+    #         time_between_frames=0., required_start_joints=None
+    # ):
+    #     assert len(target_joints) == len(maximal_jerk) == self.number_of_joints
+    #
+    #     if required_start_joints is not None:
+    #         if not self.is_close(required_start_joints):
+    #             self.change_robot_joints(required_start_joints)
+    #             self.simulation_step()
+    #
+    #     # get the current robot state
+    #     starting_joints, starting_velocities = self.get_robot_state()
+    #     segment_length = self.get_distance(target_joints, starting_joints)
+    #
+    #     # get the simulation time step
+    #     engine_parameters = p.getPhysicsEngineParameters(physicsClientId=self.my_id)
+    #     time_step = engine_parameters['fixedTimeStep']
+    #     # check if initial state is collision
+    #     if self.is_collision():
+    #         return False, 0.0, segment_length, [(starting_joints, starting_velocities)]
+    #
+    #     # these will hold the budget of steps the simulation is allowed to execute
+    #     max_steps = None
+    #     motionless_max_steps = None
+    #
+    #     motionless_steps = 0
+    #     is_free = True
+    #     visited_states = []
+    #     while not (self.is_close(target_joints) and not self.is_moving()):
+    #         visited_states.append(self.get_robot_state())
+    #         joints, velocities = visited_states[-1]
+    #         # the required time is the time maximal required time by any joint
+    #         time_required = np.max([
+    #             PandaSceneManager._find_minimal_time(
+    #                 joints[i], target_joints[i], velocities[i], time_step, maximal_jerk[i])
+    #             for i in range(self.number_of_joints)
+    #         ])
+    #         # compute the allowed budget of steps
+    #         if max_steps is None:
+    #             max_steps = int(time_required / time_step + 1) * 2
+    #             motionless_max_steps = int(max_steps / 10.) + 1
+    #         # the target of the next simulation step
+    #         targets = [
+    #             PandaSceneManager._compute_target_position_velocity(
+    #                 joints[i], target_joints[i], velocities[i], time_step, time_required)
+    #             for i in range(self.number_of_joints)
+    #         ]
+    #         next_joints, next_velocities = zip(*targets)
+    #         self.set_movement_target(next_joints, next_joints, max_forces, kd_position_coeff, kd_velocity_coeff)
+    #         # execute and observe the result
+    #         (current_joints, current_speed), is_collision = self.simulation_step()
+    #         if is_collision:
+    #             is_free = False
+    #             break
+    #         if (len(visited_states) + 1) == max_steps or motionless_steps == motionless_max_steps:
+    #             if (len(visited_states) + 1) == max_steps:
+    #                 print_and_log('segment too long, aborting for collision. distance to target {}, speed {}'.format(
+    #                     self.get_distance(target_joints, current_joints), self.get_current_speed()
+    #                 ))
+    #             else:
+    #                 print_and_log('segment motionless, aborting for collision. distance to target {}, speed {}'.format(
+    #                     self.get_distance(target_joints, current_joints), self.get_current_speed()
+    #                 ))
+    #             print_and_log('start configuration {}, starting speeds {}'.format(starting_joints, starting_velocities))
+    #             print_and_log('end {}'.format(target_joints.tolist()))
+    #             print_and_log('current configuration {}, current speeds {}'.format(current_joints, current_speed))
+    #             print_and_log('')
+    #             is_free = False
+    #             break
+    #         if not self.is_moving():
+    #             motionless_steps += 1
+    #         else:
+    #             motionless_steps = 0
+    #         if time_between_frames > 0.:
+    #             time.sleep(time_between_frames)
+    #     if is_free:
+    #         free_length = segment_length
+    #         collision_length = 0.0
+    #     else:
+    #         free_length = 0.0
+    #         collision_length = segment_length
+    #     return True, free_length, collision_length, visited_states
+    #
+    # @staticmethod
+    # def _compute_target_position_velocity(current_joint, target_joint, current_velocity, time_step, end_time):
+    #     a0 = current_joint
+    #     a1 = current_velocity
+    #     a2 = PandaSceneManager._compute_a2(current_joint, target_joint, current_velocity, end_time)
+    #     a3 = PandaSceneManager._compute_a3(current_joint, target_joint, current_velocity, end_time)
+    #     position = a3 * time_step ** 3 + a2 * time_step ** 2 + a1 * time_step + a0
+    #     velocity = 3 * a3 * time_step ** 2 + 2 * a2 * time_step + a1
+    #     return position, velocity
+    #
+    # @staticmethod
+    # def _find_minimal_time(current_joint, target_joint, current_velocity, pybullet_step_time, constraint):
+    #     end_time = pybullet_step_time
+    #     while np.abs(6 * PandaSceneManager._compute_a3(
+    #             current_joint, target_joint, current_velocity, end_time)) > constraint:
+    #         end_time *= 2
+    #     return end_time
+    #
+    # @staticmethod
+    # def _compute_a2(current_joint, target_joint, current_velocity, end_time):
+    #     return (3. * target_joint - 3. * current_joint - 2. * current_velocity * end_time) / (end_time ** 2)
+    #
+    # @staticmethod
+    # def _compute_a3(current_joint, target_joint, current_velocity, end_time):
+    #     return (current_velocity * end_time + 2. * current_joint - 2. * target_joint) / (end_time ** 3)
 
     def _get_waypoints(self, start, end, max_waypoint_sensetivity_intervals):
         max_step = self.position_sensitivity * max_waypoint_sensetivity_intervals
@@ -344,9 +359,9 @@ class PandaSceneManager:
 
     def walk_small_segment(
             self, target_joints, time_between_frames=0., required_start_joints=None, max_steps=5000,
-            max_forces=(500., 500., 500., 500., 500., 500., 500., 10., 10.),
-            position_coeff=(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0),
-            velocity_coeff=(0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1)
+            # max_forces=(500., 500., 500., 500., 500., 500., 500., 10., 10.),
+            # position_coeff=(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0),
+            # velocity_coeff=(0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1)
     ):
 
         motionless_max_steps = max_steps/10
@@ -371,7 +386,8 @@ class PandaSceneManager:
         visited_states = []
         motionless_steps = 0
         self.set_movement_target(
-            target_joints, max_forces=max_forces, position_coeff=position_coeff, velocity_coeff=velocity_coeff)
+            target_joints)
+            # target_joints, max_forces=max_forces, position_coeff=position_coeff, velocity_coeff=velocity_coeff)
         while not (self.is_close(target_joints) and not self.is_moving()):
             visited_states.append(self.get_robot_state())
             # execute and observe the result
@@ -389,7 +405,7 @@ class PandaSceneManager:
                         self.get_distance(target_joints, current_joints), self.get_current_speed()
                     ))
                 print_and_log('start configuration {}, starting speeds {}'.format(starting_joints, starting_velocities))
-                print_and_log('end {}'.format(target_joints.tolist()))
+                print_and_log('end {}'.format(target_joints))
                 print_and_log('current configuration {}, current speeds {}'.format(current_joints, current_speed))
                 print_and_log('')
                 is_free = False

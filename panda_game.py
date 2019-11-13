@@ -25,7 +25,7 @@ class PandaGame(AbstractMotionPlanningGame):
 
     @staticmethod
     def _get_number_of_workers(config):
-        return 1  # for debug: set one worker
+        # return 1  # for debug: set one worker
         # get configuration values
         test_episodes = config['general']['test_episodes']
         train_episodes_per_cycle = config['general']['train_episodes_per_cycle']
@@ -38,9 +38,9 @@ class PandaGame(AbstractMotionPlanningGame):
         return min(max_episodes, max_cores_with_slack)
 
     @staticmethod
-    def get_scene_manager(config):
+    def get_scene_manager(config, use_ui=False):
         obstacles_definitions_list = PandaGame._get_obstacle_definitions(config)
-        panda_scene_manager = PandaSceneManager(use_ui=False, obstacle_definitions=obstacles_definitions_list)
+        panda_scene_manager = PandaSceneManager(use_ui=use_ui, obstacle_definitions=obstacles_definitions_list)
         return panda_scene_manager
 
     @staticmethod
@@ -177,7 +177,7 @@ class GameWorker(multiprocessing.Process):
         start_ = PandaGame.virtual_to_real_state(truncated_start, self.panda_scene_manager)
         end_ = PandaGame.virtual_to_real_state(truncated_end, self.panda_scene_manager)
 
-        is_start_valid, is_goal_valid, sum_free, sum_collision = self.panda_scene_manager.walk_between_waypoints(
+        is_start_valid, is_goal_valid, sum_free, sum_collision, _ = self.panda_scene_manager.walk_between_waypoints(
             start_, end_)
 
         is_start_valid = is_start_valid and (truncated_distance_start == 0.0)
