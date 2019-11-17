@@ -103,6 +103,23 @@ class PandaGame(AbstractMotionPlanningGame):
             g[3] = 0.4 * upper[3] + 0.6 * lower[3]
             g[4] = 0.7 * upper[4] + 0.3 * lower[4]
             g = self.real_to_virtual_state(g, self.panda_scene_manager)
+        elif scenario == 'panda_hard':
+            s = upper.copy()
+            s[0] = 0.7 * upper[0] + 0.3 * lower[0]
+            s[1] = 0.7 * upper[1] + 0.3 * lower[1]
+            s[2] = 0.1 * upper[2] + 0.9 * lower[2]
+            s[3] = 0.4 * upper[3] + 0.6 * lower[3]
+            s[4] = 0.7 * upper[4] + 0.3 * lower[4]
+            s[5] = 0.7 * upper[5] + 0.3 * lower[5]
+            s[6] = 0.7 * upper[6] + 0.3 * lower[6]
+            s = self.real_to_virtual_state(s, self.panda_scene_manager)
+
+            g = upper.copy()
+            g[0] = 0.1 * upper[0] + 0.9 * lower[0]
+            g[1] = 0.6 * upper[1] + 0.4 * lower[1]
+            g[3] = 0.1 * upper[3] + 0.9 * lower[3]
+            g[4] = 0.4 * upper[4] + 0.6 * lower[4]
+            g = self.real_to_virtual_state(g, self.panda_scene_manager)
         else:
             assert False
 
