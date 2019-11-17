@@ -396,18 +396,18 @@ class PandaSceneManager:
                 is_free = False
                 break
             if (len(visited_states) + 1) == max_steps or motionless_steps == motionless_max_steps:
-                if (len(visited_states) + 1) == max_steps:
-                    print_and_log('segment too long, aborting for collision. distance to target {}, speed {}'.format(
-                        self.get_distance(target_joints, current_joints), self.get_current_speed()
-                    ))
-                else:
-                    print_and_log('segment motionless, aborting for collision. distance to target {}, speed {}'.format(
-                        self.get_distance(target_joints, current_joints), self.get_current_speed()
-                    ))
-                print_and_log('start configuration {}, starting speeds {}'.format(starting_joints, starting_velocities))
-                print_and_log('end {}'.format(target_joints))
-                print_and_log('current configuration {}, current speeds {}'.format(current_joints, current_speed))
-                print_and_log('')
+                # if (len(visited_states) + 1) == max_steps:
+                #     print_and_log('segment too long, aborting for collision. distance to target {}, speed {}'.format(
+                #         self.get_distance(target_joints, current_joints), self.get_current_speed()
+                #     ))
+                # else:
+                #     print_and_log('segment motionless, aborting for collision. distance to target {}, speed {}'.format(
+                #         self.get_distance(target_joints, current_joints), self.get_current_speed()
+                #     ))
+                # print_and_log('start configuration {}, starting speeds {}'.format(starting_joints, starting_velocities))
+                # print_and_log('end {}'.format(target_joints))
+                # print_and_log('current configuration {}, current speeds {}'.format(current_joints, current_speed))
+                # print_and_log('')
                 is_free = False
                 break
             if not self.is_moving():
