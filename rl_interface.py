@@ -106,6 +106,9 @@ class AbstractMotionPlanningGame:
     def get_fixed_start_goal_pairs(self):
         assert False
 
+    def get_free_states(self, number_of_states):
+        assert False
+
 
 class RLInterface:
     def __init__(self, config, game):

@@ -60,10 +60,10 @@ class PandaGame(AbstractMotionPlanningGame):
         return truncated_state, truncated_distance
 
     def is_free_state(self, state):
-        return self._is_free_state_in_manager(state, self.panda_scene_manager)
+        return self.is_free_state_in_manager(state, self.panda_scene_manager)
 
     @staticmethod
-    def _is_free_state_in_manager(state, panda_scene_manager):
+    def is_free_state_in_manager(state, panda_scene_manager):
         if any(np.abs(state) > 1.0):
             return False
         state_ = PandaGame.virtual_to_real_state(state, panda_scene_manager)
@@ -141,6 +141,18 @@ class PandaGame(AbstractMotionPlanningGame):
             results[path_id] = {t[0]: t[1] for t in path_results}
         return results
 
+    def get_free_states(self, number_of_states):
+        # put all requests
+        for i in range(number_of_states):
+            self.requests_queue.put((i, None))
+
+        # pull all responses
+        results = []
+        for _ in range(number_of_states):
+            response = self.results_queue.get(block=True)
+            results.append(response)
+        return results
+
     @staticmethod
     def virtual_to_real_state(s, panda_scene_manager):
         lower = np.array(panda_scene_manager.joints_lower_bounds)
@@ -176,11 +188,16 @@ class GameWorker(multiprocessing.Process):
             try:
                 request = self.requests_queue.get(block=True, timeout=0.001)
                 path_id, cost_queries = request
-                path_cost_results = [
-                    (i, self.check_terminal_segment(start, end))
-                    for i, start, end in cost_queries
-                ]
-                response = (path_id, path_cost_results)
+                if cost_queries is None:
+                    # get a valid random state
+                    response = self.get_valid_state()
+                else:
+                    # check terminal segments
+                    path_cost_results = [
+                        (i, self.check_terminal_segment(start, end))
+                        for i, start, end in cost_queries
+                    ]
+                    response = (path_id, path_cost_results)
                 self.results_queue.put(response)
             except queue.Empty:
                 time.sleep(1.0)
@@ -202,3 +219,10 @@ class GameWorker(multiprocessing.Process):
 
         sum_collision += truncated_distance_start + truncated_distance_end
         return start, end, is_start_valid, is_goal_valid, sum_free, sum_collision
+
+    def get_valid_state(self):
+        while True:
+            state_size = len(self.panda_scene_manager.joints_lower_bounds)
+            virtual_state = np.random.uniform(-1., 1., state_size)
+            if PandaGame.is_free_state_in_manager(virtual_state, self.panda_scene_manager):
+                return virtual_state

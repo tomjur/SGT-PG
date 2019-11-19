@@ -18,9 +18,8 @@ class EpisodeRunner:
         return self.play_episodes(self.fixed_start_goal_pairs, top_level, is_train)
 
     def play_random_episodes(self, number_of_episodes, top_level, is_train):
-        start_goal_pairs = [
-            (self.game.get_free_random_state(), self.game.get_free_random_state()) for _ in range(number_of_episodes)
-        ]
+        free_random_states = self.game.get_free_states(number_of_episodes * 2)
+        start_goal_pairs = [(free_random_states[2*i], free_random_states[2*i+1]) for i in range(number_of_episodes)]
         return self.play_episodes(start_goal_pairs, top_level, is_train)
 
     def play_episodes(self, start_goal_pairs, top_level, is_train):
