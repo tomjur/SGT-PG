@@ -156,56 +156,56 @@ class Trainer:
         else:
             assert False
 
-    def print_gradient(self, count, level, cycle):
-        if not self.check_gradients:
-            return
-        results = {}
-        for i in range(count):
-            s, g = self.episode_runner.game.get_free_random_state(), self.episode_runner.game.get_free_random_state()
-            results[i] = self.get_gradient_print_info_single_start_goal(s, g, level)
-        self.print_gradient_infos(results, cycle)
-
-    def get_gradient_print_info_single_start_goal(self, start, goal, level):
-        if not self.check_gradients:
-            return
-        self.gradient_saver.save(self.sess, 0)
-        start_goal_pair = [(np.array(start), np.array(goal))]
-        pre_train_mean = self._get_mean(start_goal_pair, level)
-        middles, costs = self._take_single_step(start_goal_pair, level)
-        post_train_mean = self._get_mean(start_goal_pair, level)
-        self.gradient_saver.restore(self.sess)
-        post_restore_mean = self._get_mean(start_goal_pair, level)
-        assert all(np.equal(pre_train_mean, post_restore_mean))
-        return start, goal, pre_train_mean, post_train_mean, middles
-
-    def print_gradient_infos(self, gradient_results, cycle):
-        gradient_output_file = os.path.join(self.gradient_output_dir, '{}.txt'.format(cycle))
-        with open(gradient_output_file, 'w') as results_file:
-            for result_id in gradient_results:
-                results_file.write('id_{}{}'.format(result_id, os.linesep))
-                start, goal, pre_train_mean, post_train_mean, middles = gradient_results[result_id]
-                results_file.write('{}{}'.format(start, os.linesep))
-                results_file.write('{}{}'.format(goal, os.linesep))
-                results_file.write('{}{}'.format(pre_train_mean, os.linesep))
-                results_file.write('{}{}'.format(post_train_mean, os.linesep))
-                for middle in middles:
-                    results_file.write('{}{}'.format(middle, os.linesep))
-            results_file.flush()
-
-    def _get_mean(self, start_goal_pair, level):
-        test_episode_results = self.episode_runner.play_episodes(start_goal_pair, level, False)
-        splits_top_level = test_episode_results[test_episode_results.keys()[0]][1][level]
-        return splits_top_level[splits_top_level.keys()[0]][2]
-
-    def _take_single_step(self, start_goal_pair, top_level):
-        # run single prediction
-        episode_results = self.episode_runner.play_episodes(start_goal_pair, top_level, True)
-        # process the results
-        _, _, dataset, _ = self._process_episode_results(episode_results, top_level)
-        dataset = dataset[top_level]
-        # modify the costs
-        starts, ends, middles, _, _, costs = zip(*dataset)
-        costs = self._process_costs(starts, ends, costs, top_level)
-        # take a single policy step
-        self.network.train_policy(top_level, starts, ends, middles, costs, self.sess)
-        return middles, costs
+    # def print_gradient(self, count, level, cycle):
+    #     if not self.check_gradients:
+    #         return
+    #     results = {}
+    #     for i in range(count):
+    #         s, g = self.episode_runner.game.get_free_random_state(), self.episode_runner.game.get_free_random_state()
+    #         results[i] = self.get_gradient_print_info_single_start_goal(s, g, level)
+    #     self.print_gradient_infos(results, cycle)
+    #
+    # def get_gradient_print_info_single_start_goal(self, start, goal, level):
+    #     if not self.check_gradients:
+    #         return
+    #     self.gradient_saver.save(self.sess, 0)
+    #     start_goal_pair = [(np.array(start), np.array(goal))]
+    #     pre_train_mean = self._get_mean(start_goal_pair, level)
+    #     middles, costs = self._take_single_step(start_goal_pair, level)
+    #     post_train_mean = self._get_mean(start_goal_pair, level)
+    #     self.gradient_saver.restore(self.sess)
+    #     post_restore_mean = self._get_mean(start_goal_pair, level)
+    #     assert all(np.equal(pre_train_mean, post_restore_mean))
+    #     return start, goal, pre_train_mean, post_train_mean, middles
+    #
+    # def print_gradient_infos(self, gradient_results, cycle):
+    #     gradient_output_file = os.path.join(self.gradient_output_dir, '{}.txt'.format(cycle))
+    #     with open(gradient_output_file, 'w') as results_file:
+    #         for result_id in gradient_results:
+    #             results_file.write('id_{}{}'.format(result_id, os.linesep))
+    #             start, goal, pre_train_mean, post_train_mean, middles = gradient_results[result_id]
+    #             results_file.write('{}{}'.format(start, os.linesep))
+    #             results_file.write('{}{}'.format(goal, os.linesep))
+    #             results_file.write('{}{}'.format(pre_train_mean, os.linesep))
+    #             results_file.write('{}{}'.format(post_train_mean, os.linesep))
+    #             for middle in middles:
+    #                 results_file.write('{}{}'.format(middle, os.linesep))
+    #         results_file.flush()
+    #
+    # def _get_mean(self, start_goal_pair, level):
+    #     test_episode_results = self.episode_runner.play_episodes(start_goal_pair, level, False)
+    #     splits_top_level = test_episode_results[test_episode_results.keys()[0]][1][level]
+    #     return splits_top_level[splits_top_level.keys()[0]][2]
+    #
+    # def _take_single_step(self, start_goal_pair, top_level):
+    #     # run single prediction
+    #     episode_results = self.episode_runner.play_episodes(start_goal_pair, top_level, True)
+    #     # process the results
+    #     _, _, dataset, _ = self._process_episode_results(episode_results, top_level)
+    #     dataset = dataset[top_level]
+    #     # modify the costs
+    #     starts, ends, middles, _, _, costs = zip(*dataset)
+    #     costs = self._process_costs(starts, ends, costs, top_level)
+    #     # take a single policy step
+    #     self.network.train_policy(top_level, starts, ends, middles, costs, self.sess)
+    #     return middles, costs
