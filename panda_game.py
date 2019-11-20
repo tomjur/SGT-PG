@@ -1,3 +1,5 @@
+import os
+from random import Random
 import numpy as np
 import multiprocessing
 import queue
@@ -181,8 +183,10 @@ class GameWorker(multiprocessing.Process):
         self.results_queue = results_queue
 
         self.panda_scene_manager = None
+        self.random = None
 
     def run(self):
+        self.random = Random(os.getpid())
         self.panda_scene_manager = PandaGame.get_scene_manager(self.config)
         while True:
             try:
@@ -223,6 +227,6 @@ class GameWorker(multiprocessing.Process):
     def get_valid_state(self):
         while True:
             state_size = len(self.panda_scene_manager.joints_lower_bounds)
-            virtual_state = np.random.uniform(-1., 1., state_size)
+            virtual_state = [self.random.uniform(-1., 1.) for _ in range(state_size)]
             if PandaGame.is_free_state_in_manager(virtual_state, self.panda_scene_manager):
                 return virtual_state
