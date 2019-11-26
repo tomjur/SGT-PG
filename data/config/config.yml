@@ -54,6 +54,7 @@ model:
   gain: 'future-only'
 #  repeat_train_trajectories: 10
   repeat_train_trajectories: 3
+  consecutive_optimization_steps: 5
 
 policy:
   learning_rate: 0.005
@@ -77,6 +78,7 @@ policy:
   bias_activation_is_tanh: False
   bias_around_midpoint: True
 #  bias_around_midpoint: False
+  ppo_epsilon: 0.2
 
 gradient_checker:
 #  enable: True

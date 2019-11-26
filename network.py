@@ -67,7 +67,7 @@ class Network:
             start_inputs, goal_inputs, middle_inputs=middle_inputs, labels=labels, symmetric=symmetric)
         network = self.policy_networks[level]
         ops = [
-            network.optimization_summaries, network.prediction_loss, network.optimize
+            network.optimization_summaries, network.cost_loss, network.optimize
         ]
         return sess.run(ops, feed_dictionary)
 
@@ -97,6 +97,10 @@ class Network:
     def init_policy_from_lower_level(self, sess, current_level):
         assert 1 < current_level <= self.levels
         sess.run(self.policy_networks[current_level].assign_from_last_policy_ops)
+
+    def update_baseline_policy(self, sess, current_level):
+        assert 1 <= current_level <= self.levels
+        sess.run(self.policy_networks[current_level].assign_to_baseline_ops)
 
     def get_all_variables(self):
         model_variables = []
@@ -166,18 +170,39 @@ class PolicyNetwork:
 
         # to update from last level:
         if previous_policy is not None:
-            self.assign_from_last_policy_ops = [
-                tf.compat.v1.assign(var, previous_policy.model_variables[i])
-                for i, var in enumerate(self.model_variables)
-            ]
+            self.assign_from_last_policy_ops = self.get_assignment_between_policies(
+                previous_policy.model_variables, self.model_variables
+            )
+        else:
+            self.assign_from_last_policy_ops = None
+
+        # get the baseline prediction distribution (remains fixed during optimization)
+        self.baseline_prediction_distribution, self.baseline_model_variables = self._create_network(
+            self.start_inputs, self.goal_inputs)
+
+        # to update baseline to the optimized:
+        self.assign_to_baseline_ops = self.get_assignment_between_policies(
+            self.model_variables, self.baseline_model_variables
+        )
+
+        # compute the policies ratio
+        log_likelihood = self.prediction_distribution.log_prob(self.middle_inputs)
+        log_likelihood_baseline = self.baseline_prediction_distribution.log_prob(self.middle_inputs)
+        policy_ratio = tf.exp(log_likelihood - log_likelihood_baseline)
+
+        # clip the ratio
+        epsilon = self.config['policy']['ppo_epsilon']
+        clipped_ratio = tf.maximum(tf.minimum(policy_ratio, 1. - epsilon), 1. + epsilon)
+
+        # add advantage
+        advantage = tf.expand_dims(policy_ratio, axis=1) * self.label_inputs
+        clipped_advantage = tf.expand_dims(clipped_ratio, axis=1) * self.label_inputs
 
         # compute the loss
-        log_likelihood = self.prediction_distribution.log_prob(self.middle_inputs)
-        mean_log_likelihood = tf.reduce_mean(log_likelihood)
+        self.cost_loss = tf.reduce_mean(tf.maximum(advantage, clipped_advantage))
 
         # optimize
-        self.prediction_loss = tf.reduce_mean(tf.expand_dims(log_likelihood, axis=-1) * self.label_inputs)
-        self.total_loss = self.prediction_loss
+        self.total_loss = self.cost_loss
         self.learn_rate_variable = tf.Variable(
             self.config['policy']['learning_rate'], trainable=False, name='learn_rate_variable')
         new_learn_rate = tf.maximum(self.config['policy']['learning_rate_minimum'],
@@ -197,10 +222,9 @@ class PolicyNetwork:
 
         # summaries
         merge_summaries = [
-            tf.compat.v1.summary.scalar('{}_prediction_loss'.format(self.name_prefix), self.prediction_loss),
+            tf.compat.v1.summary.scalar('{}_cost_loss'.format(self.name_prefix), self.cost_loss),
             tf.compat.v1.summary.scalar('{}_total_loss'.format(self.name_prefix), self.total_loss),
             tf.compat.v1.summary.scalar('{}_learn_rate'.format(self.name_prefix), self.learn_rate_variable),
-            tf.compat.v1.summary.scalar('{}_log_likelihood'.format(self.name_prefix), mean_log_likelihood),
             tf.compat.v1.summary.scalar('{}_weights_norm'.format(self.name_prefix), norm),
         ]
         if self.initial_gradients_norm is not None:
@@ -218,6 +242,14 @@ class PolicyNetwork:
                 )
             )
         self.optimization_summaries = tf.compat.v1.summary.merge(merge_summaries)
+
+    @staticmethod
+    def get_assignment_between_policies(source_policy_variables, target_policy_variables):
+        assign_ops = [
+            tf.compat.v1.assign(var, source_policy_variables[i])
+            for i, var in enumerate(target_policy_variables)
+        ]
+        return assign_ops
 
     def reuse_policy_network(self, start_inputs, goal_inputs):
         policy_distribution, model_variables = self._create_network(start_inputs, goal_inputs)

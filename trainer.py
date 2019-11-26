@@ -64,12 +64,17 @@ class Trainer:
             ]
             if len(valid_data) == 0:
                 continue
-            starts, ends, middles, costs = zip(*random.sample(valid_data, min(self.batch_size, len(valid_data))))
-            costs = self._process_costs(starts, ends, costs, level)
-            summaries, prediction_loss, _ = self.network.train_policy(level, starts, ends, middles, costs, self.sess)
-            if global_step % self.summaries_frequency == 0:
-                self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
-            global_step += 1
+            # set the baseline to the current policy
+            self.network.update_baseline_policy(self.sess, level)
+            # do optimization steps
+            for update_step in range(self.config['model']['consecutive_optimization_steps']):
+                starts, ends, middles, costs = zip(*random.sample(valid_data, min(self.batch_size, len(valid_data))))
+                costs = self._process_costs(starts, ends, costs, level)
+                summaries, prediction_loss, _ = self.network.train_policy(
+                    level, starts, ends, middles, costs, self.sess)
+                if global_step % self.summaries_frequency == 0:
+                    self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
+                global_step += 1
         return global_step
 
     def _process_costs(self, starts, ends, costs, level):
