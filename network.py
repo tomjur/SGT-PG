@@ -178,7 +178,7 @@ class PolicyNetwork:
 
         # get the baseline prediction distribution (remains fixed during optimization)
         self.baseline_prediction_distribution, self.baseline_model_variables = self._create_network(
-            self.start_inputs, self.goal_inputs)
+            self.start_inputs, self.goal_inputs, is_baseline=True)
 
         # to update baseline to the optimized:
         self.assign_to_baseline_ops = self.get_assignment_between_policies(
@@ -256,7 +256,13 @@ class PolicyNetwork:
         assert len(model_variables) == 0
         return policy_distribution
 
-    def _create_network(self, start_inputs, goal_inputs):
+    def _create_network(self, start_inputs, goal_inputs, is_baseline=False):
+        if is_baseline:
+            name_prefix = '{}_baseline'.format(self.name_prefix)
+            reuse = False
+        else:
+            name_prefix = self.name_prefix
+            reuse = self._reuse
         variable_count = len(tf.compat.v1.trainable_variables())
         activation = get_activation(self.config['policy']['activation'])
         network_layers = self.config['policy']['layers']
@@ -271,14 +277,13 @@ class PolicyNetwork:
         current = current_input
         for i, layer_size in enumerate(network_layers):
             current = tf.layers.dense(
-                current, layer_size, activation=activation,
-                name='{}_layer_{}'.format(self.name_prefix, i), reuse=self._reuse,
+                current, layer_size, activation=activation, name='{}_layer_{}'.format(name_prefix, i), reuse=reuse,
             )
 
         if learn_std:
             normal_dist_parameters = tf.layers.dense(
                 current, self.state_size * 2, activation=None,
-                name='{}_normal_dist_parameters'.format(self.name_prefix), reuse=self._reuse,
+                name='{}_normal_dist_parameters'.format(name_prefix), reuse=reuse,
             )
             split_normal_dist_parameters = tf.split(normal_dist_parameters, 2, axis=1)
             bias = split_normal_dist_parameters[0]
@@ -287,7 +292,7 @@ class PolicyNetwork:
         else:
             normal_dist_parameters = tf.layers.dense(
                 current,  self.state_size, activation=None,
-                name='{}_normal_dist_parameters'.format(self.name_prefix), reuse=self._reuse,
+                name='{}_normal_dist_parameters'.format(name_prefix), reuse=reuse,
             )
             bias = normal_dist_parameters
             std = [base_std] * self.state_size
@@ -300,8 +305,8 @@ class PolicyNetwork:
 
         distribution = tfp.distributions.MultivariateNormalDiag(loc=bias, scale_diag=std)
         model_variables = tf.compat.v1.trainable_variables()[variable_count:]
-        if self._reuse:
+        if reuse:
             assert len(model_variables) == 0
-        else:
+        elif not is_baseline:
             self._reuse = True
         return distribution, model_variables
