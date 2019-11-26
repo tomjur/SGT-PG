@@ -79,27 +79,6 @@ class Trainer:
 
         return costs
 
-    def train_value_function_at_level(self, top_level, global_step):
-        successes, accumulated_cost, dataset, _ = self.collect_data(
-            self.train_episodes_per_cycle, top_level, is_train=True, use_fixed_start_goal_pairs=False)
-        if global_step % self.summaries_frequency == 0:
-            self.summaries_collector.write_train_success_summaries(self.sess, global_step, successes, accumulated_cost)
-
-        prediction_loss = None
-        for level in self._get_relevant_levels(top_level):
-            valid_data = [
-                (s, g, m, c) for (s, g, m, s_valid, g_valid, c) in dataset[level] if s_valid and g_valid
-            ]
-            if len(valid_data) == 0:
-                continue
-            starts, ends, _, costs = zip(*random.sample(valid_data, min(self.batch_size, len(valid_data))))
-
-            summaries, prediction_loss, _ = self.network.train_value(level, starts, ends, costs, self.sess)
-            if global_step % self.summaries_frequency == 0:
-                self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
-            global_step += 1
-        return global_step, prediction_loss
-
     def collect_data(self, count, top_level, is_train=True, use_fixed_start_goal_pairs=False):
         print_and_log('collecting {} {} episodes of level {}'.format(count, 'train' if is_train else 'test', top_level))
         if use_fixed_start_goal_pairs:
