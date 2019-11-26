@@ -177,12 +177,7 @@ class PolicyNetwork:
 
         # optimize
         self.prediction_loss = tf.reduce_mean(tf.expand_dims(log_likelihood, axis=-1) * self.label_inputs)
-        if self.config['policy']['regularization'] == 0.0:
-            self.regularization_loss = 0.0
-        else:
-            self.regularization_loss = tf.reduce_mean(
-                tf.losses.get_regularization_losses(scope=self.name_prefix))
-        self.total_loss = self.prediction_loss + self.regularization_loss
+        self.total_loss = self.prediction_loss
         self.learn_rate_variable = tf.Variable(
             self.config['policy']['learning_rate'], trainable=False, name='learn_rate_variable')
         new_learn_rate = tf.maximum(self.config['policy']['learning_rate_minimum'],
@@ -203,7 +198,6 @@ class PolicyNetwork:
         # summaries
         merge_summaries = [
             tf.compat.v1.summary.scalar('{}_prediction_loss'.format(self.name_prefix), self.prediction_loss),
-            tf.compat.v1.summary.scalar('{}_regularization_loss'.format(self.name_prefix), self.regularization_loss),
             tf.compat.v1.summary.scalar('{}_total_loss'.format(self.name_prefix), self.total_loss),
             tf.compat.v1.summary.scalar('{}_learn_rate'.format(self.name_prefix), self.learn_rate_variable),
             tf.compat.v1.summary.scalar('{}_log_likelihood'.format(self.name_prefix), mean_log_likelihood),
@@ -235,7 +229,6 @@ class PolicyNetwork:
         activation = get_activation(self.config['policy']['activation'])
         network_layers = self.config['policy']['layers']
         learn_std = self.config['policy']['learn_std']
-        regularization_scale = self.config['policy']['regularization']
 
         base_std = self.base_std_variable
         current_input = tf.concat((start_inputs, goal_inputs), axis=1)
@@ -248,14 +241,12 @@ class PolicyNetwork:
             current = tf.layers.dense(
                 current, layer_size, activation=activation,
                 name='{}_layer_{}'.format(self.name_prefix, i), reuse=self._reuse,
-                kernel_regularizer=tf.contrib.layers.l1_regularizer(scale=regularization_scale, scope=self.name_prefix)
             )
 
         if learn_std:
             normal_dist_parameters = tf.layers.dense(
                 current, self.state_size * 2, activation=None,
                 name='{}_normal_dist_parameters'.format(self.name_prefix), reuse=self._reuse,
-                kernel_regularizer=tf.contrib.layers.l1_regularizer(scale=regularization_scale, scope=self.name_prefix)
             )
             split_normal_dist_parameters = tf.split(normal_dist_parameters, 2, axis=1)
             bias = split_normal_dist_parameters[0]
@@ -265,7 +256,6 @@ class PolicyNetwork:
             normal_dist_parameters = tf.layers.dense(
                 current,  self.state_size, activation=None,
                 name='{}_normal_dist_parameters'.format(self.name_prefix), reuse=self._reuse,
-                kernel_regularizer=tf.contrib.layers.l1_regularizer(scale=regularization_scale, scope=self.name_prefix)
             )
             bias = normal_dist_parameters
             std = [base_std] * self.state_size

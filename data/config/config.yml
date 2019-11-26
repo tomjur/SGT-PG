@@ -73,8 +73,6 @@ policy:
   std_decrease_rate: 0.8
   learn_std: False
 #  learn_std: True
-  regularization: 0.0
-#  regularization: 0.1
 #  bias_activation_is_tanh: True
   bias_activation_is_tanh: False
   bias_around_midpoint: True
