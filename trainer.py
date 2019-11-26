@@ -17,7 +17,6 @@ class Trainer:
         self.episode_runner = episode_runner
         self.summaries_collector = summaries_collector
 
-        self.summaries_frequency = config['general']['write_summaries_every']
         self.batch_size = config['model']['batch_size']
         self.steps_per_trajectory_print = config['general']['cycles_per_trajectory_print']
         self.train_levels = config['model']['train_levels']
@@ -55,8 +54,7 @@ class Trainer:
     def train_policy_at_level(self, top_level, global_step):
         successes, accumulated_cost, dataset, _ = self.collect_data(
             self.train_episodes_per_cycle, top_level, is_train=True, use_fixed_start_goal_pairs=False)
-        if global_step % self.summaries_frequency == 0:
-            self.summaries_collector.write_train_success_summaries(self.sess, global_step, successes, accumulated_cost)
+        self.summaries_collector.write_train_success_summaries(self.sess, global_step, successes, accumulated_cost)
 
         for level in self._get_relevant_levels(top_level):
             valid_data = [
@@ -72,8 +70,7 @@ class Trainer:
                 costs = self._process_costs(starts, ends, costs, level)
                 summaries, prediction_loss, _ = self.network.train_policy(
                     level, starts, ends, middles, costs, self.sess)
-                if global_step % self.summaries_frequency == 0:
-                    self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
+                self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
                 global_step += 1
         return global_step
 
