@@ -76,9 +76,7 @@ class Trainer:
         if self.config['model']['repeat_train_trajectories'] > 0:
             costs = self._reduce_mean_by_start_goal(starts, ends, costs)
         costs = np.expand_dims(np.array(costs), axis=-1)
-        if self.config['value_function']['use_value_functions']:
-            baseline_costs = self.network.predict_value(starts, ends, level, self.sess)
-            costs = costs - baseline_costs
+
         return costs
 
     def train_value_function_at_level(self, top_level, global_step):

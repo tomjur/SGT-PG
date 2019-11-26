@@ -15,7 +15,8 @@ general:
   write_summaries_every: 7
   training_cycles: 30000
 #  train_episodes_per_cycle: 500
-  train_episodes_per_cycle: 50
+#  train_episodes_per_cycle: 50
+  train_episodes_per_cycle: 5
 #  test_episodes: 1
   test_episodes: 100
   save_every_cycles: 1000000
@@ -51,8 +52,8 @@ model:
   stop_training_after_learn_rate_decrease: 3
 #  gain: 'full-traj'
   gain: 'future-only'
-  repeat_train_trajectories: 10
-#  repeat_train_trajectories: 3
+#  repeat_train_trajectories: 10
+  repeat_train_trajectories: 3
 
 policy:
   learning_rate: 0.005
@@ -78,21 +79,6 @@ policy:
   bias_activation_is_tanh: False
   bias_around_midpoint: True
 #  bias_around_midpoint: False
-
-value_function:
-#  use_value_functions: True
-  use_value_functions: False
-  learning_rate: 0.001
-  learning_rate_decrease_rate: 0.8
-  learning_rate_minimum: 0.00001
-  gradient_limit: 0.0
-  layers: [100, 100, 100, 100, 100, 100]
-  activation: 'elu'
-#  activation: 'relu'
-#  activation: 'tanh'
-  value_loss_threshold: 0.01
-  rolling_avg_current_coefficient: 0.5
-  max_straight_updates: 100
 
 gradient_checker:
 #  enable: True

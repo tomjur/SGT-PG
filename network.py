@@ -28,10 +28,6 @@ class Network:
             )
             self.policy_networks[level] = current_policy
             previous_policy = current_policy
-            if self.config['value_function']['use_value_functions']:
-                # create value networks
-                value_network = ValueNetwork(config, level, self.start_inputs, self.goal_inputs, self.label_inputs)
-                self.value_networks[level] = value_network
 
         # this is the prediction over the entire subtree (element at index l contains the entire trajectory prediction
         # for a tree with l levels
@@ -65,13 +61,6 @@ class Network:
         tree = self.policy_tree_prediction if is_train else self.test_policy_tree_prediction
         return sess.run(tree[level], self._generate_feed_dictionary(start_inputs, goal_inputs))
 
-    def predict_value(self, start_inputs, goal_inputs, level, sess):
-        assert self.config['value_function']['use_value_functions']
-        assert 1 <= level <= self.levels
-        return sess.run(
-            self.value_networks[level].value_prediction, self._generate_feed_dictionary(start_inputs, goal_inputs)
-        )
-
     def train_policy(self, level, start_inputs, goal_inputs, middle_inputs, labels, sess, symmetric=True):
         assert 1 <= level <= self.levels
         feed_dictionary = self._generate_feed_dictionary(
@@ -82,25 +71,9 @@ class Network:
         ]
         return sess.run(ops, feed_dictionary)
 
-    def train_value(self, level, start_inputs, goal_inputs, labels, sess):
-        assert self.config['value_function']['use_value_functions']
-        assert 1 <= level <= self.levels
-        feed_dictionary = self._generate_feed_dictionary(
-            start_inputs, goal_inputs, labels=labels)
-        network = self.value_networks[level]
-        ops = [
-            network.optimization_summaries, network.prediction_loss, network.optimize
-        ]
-        return sess.run(ops, feed_dictionary)
-
     def decrease_learn_rates(self, sess, level):
         assert 1 <= level <= self.levels
-        ops = [
-            self.policy_networks[level].decrease_learn_rate_op,
-        ]
-        if self.config['value_function']['use_value_functions']:
-            ops.append(self.value_networks[level].decrease_learn_rate_op)
-        return sess.run(ops)
+        return sess.run([self.policy_networks[level].decrease_learn_rate_op])
 
     def decrease_base_std(self, sess, level):
         assert 1 <= level <= self.levels
@@ -110,14 +83,7 @@ class Network:
         if level_limit is None:
             level_limit = self.levels
         assert 1 <= level_limit <= self.levels
-        ops = [
-            self.policy_networks[level].learn_rate_variable for level in range(1, 1+level_limit)
-        ]
-        if self.config['value_function']['use_value_functions']:
-            ops.extend([
-                self.value_networks[level].learn_rate_variable for level in range(1, 1 + level_limit)
-            ])
-        return sess.run(ops)
+        return sess.run([self.policy_networks[level].learn_rate_variable for level in range(1, 1+level_limit)])
 
     def get_base_stds(self, sess, level_limit=None):
         if level_limit is None:
@@ -136,9 +102,6 @@ class Network:
         model_variables = []
         for level in self.policy_networks:
             model_variables.extend(self.policy_networks[level].model_variables)
-        if self.config['value_function']['use_value_functions']:
-            for level in self.value_networks:
-                model_variables.extend(self.value_networks[level].model_variables)
         return model_variables
 
     def _generate_feed_dictionary(self, start_inputs, goal_inputs, middle_inputs=None, labels=None, symmetric=False):
@@ -320,73 +283,3 @@ class PolicyNetwork:
         else:
             self._reuse = True
         return distribution, model_variables
-
-
-class ValueNetwork:
-    def __init__(self, config, level, start_inputs, goal_inputs, label_inputs):
-        self.config = config
-        self.name_prefix = 'value_function_level_{}'.format(level)
-
-        self.start_inputs = start_inputs
-        self.goal_inputs = goal_inputs
-        self.label_inputs = label_inputs
-
-        # get the prediction distribution
-        self.value_prediction, self.model_variables = self._create_network(self.start_inputs, self.goal_inputs)
-
-        # compute the loss
-        self.prediction_loss = tf.losses.mean_squared_error(self.label_inputs, self.value_prediction)
-        absolute_prediction_error = tf.abs(self.label_inputs - self.value_prediction)
-        mean_absolute_error = tf.reduce_mean(absolute_prediction_error)
-
-        # optimize
-        self.learn_rate_variable = tf.Variable(
-            self.config['value_function']['learning_rate'], trainable=False, name='learn_rate_variable')
-        new_learn_rate = tf.maximum(
-            self.config['value_function']['learning_rate_minimum'],
-            self.config['value_function']['learning_rate_decrease_rate'] * self.learn_rate_variable
-        )
-        self.decrease_learn_rate_op = tf.compat.v1.assign(self.learn_rate_variable, new_learn_rate)
-
-        self.initial_gradients_norm, self.clipped_gradients_norm, self.optimize = \
-            optimize_by_loss(
-                self.prediction_loss, self.model_variables, self.learn_rate_variable,
-                self.config['value_function']['gradient_limit']
-            )
-
-        # summaries
-        merge_summaries = [
-            tf.compat.v1.summary.scalar('{}_prediction_loss'.format(self.name_prefix), self.prediction_loss),
-            tf.compat.v1.summary.scalar('{}_learn_rate'.format(self.name_prefix), self.learn_rate_variable),
-            tf.compat.v1.summary.scalar('{}_mean_absolute_error'.format(self.name_prefix), mean_absolute_error),
-            tf.summary.histogram('{}_cost'.format(self.name_prefix), self.label_inputs),
-            tf.summary.histogram('{}_absolute_prediction_error'.format(self.name_prefix), absolute_prediction_error)
-        ]
-        if self.initial_gradients_norm is not None:
-            merge_summaries.append(
-                tf.compat.v1.summary.scalar('{}_initial_gradients_norm'.format(self.name_prefix), self.initial_gradients_norm)
-            )
-        if self.clipped_gradients_norm is not None:
-            merge_summaries.append(
-                tf.compat.v1.summary.scalar('{}_clipped_gradients_norm'.format(self.name_prefix), self.clipped_gradients_norm)
-            )
-        self.optimization_summaries = tf.compat.v1.summary.merge(merge_summaries)
-
-    def _create_network(self, start_inputs, goal_inputs):
-        variable_count = len(tf.compat.v1.trainable_variables())
-        activation = get_activation(self.config['value_function']['activation'])
-        network_layers = self.config['value_function']['layers']
-
-        current = tf.concat((start_inputs, goal_inputs), axis=1)
-        for i, layer_size in enumerate(network_layers):
-            current = tf.layers.dense(
-                current, layer_size, activation=activation,
-                name='{}_layer_{}'.format(self.name_prefix, i)
-            )
-        value_prediction = tf.layers.dense(
-            current, 1, activation=None,
-            name='{}_last_layer'.format(self.name_prefix)
-        )
-
-        model_variables = tf.compat.v1.trainable_variables()[variable_count:]
-        return value_prediction, model_variables
