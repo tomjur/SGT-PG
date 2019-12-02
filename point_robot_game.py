@@ -2,7 +2,7 @@ import numpy as np
 import pickle
 
 from point_robot_manager import PointRobotManager
-from rl_interface import AbstractMotionPlanningGame
+from abstract_motion_planning_game import AbstractMotionPlanningGame
 
 
 class PointRobotGame(AbstractMotionPlanningGame):
@@ -16,7 +16,7 @@ class PointRobotGame(AbstractMotionPlanningGame):
                 obstacles_definitions_list = pickle.load(f)
         self.point_robot_manager = PointRobotManager(obstacles_definitions_list)
 
-    def check_terminal_segments(self, cost_queries):
+    def test_predictions(self, cost_queries):
         results = {}
         for path_id in cost_queries:
             results[path_id] = {}

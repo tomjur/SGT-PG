@@ -43,7 +43,7 @@ class EpisodeRunner:
             cost_queries = [(i, episode[i], episode[i+1]) for i in range(len(episode)-1)]
             all_costs_queries[path_id] = cost_queries
 
-        all_cost_responses = self.game.check_terminal_segments(all_costs_queries)
+        all_cost_responses = self.game.test_predictions(all_costs_queries)
 
         for path_id in results:
             episode = results[path_id]

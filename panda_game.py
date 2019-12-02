@@ -6,7 +6,7 @@ import queue
 import time
 
 from panda_scene_manager import PandaSceneManager
-from rl_interface import AbstractMotionPlanningGame
+from abstract_motion_planning_game import AbstractMotionPlanningGame
 
 
 class PandaGame(AbstractMotionPlanningGame):
@@ -129,7 +129,7 @@ class PandaGame(AbstractMotionPlanningGame):
         assert self.is_free_state(g)
         return [(s, g)]
 
-    def check_terminal_segments(self, cost_queries):
+    def test_predictions(self, cost_queries):
         # put all requests
         for path_id in cost_queries:
             path_requests = (path_id, tuple(cost_queries[path_id]))
