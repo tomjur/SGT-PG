@@ -5,35 +5,23 @@ import time
 
 
 from config_utils import read_config, copy_config
-from episode_runner_subgoal import EpisodeRunnerSubgoal
+from episode_runner_sequential import EpisodeRunnerSequential
 from model_saver import ModelSaver
-from network_subgoal import Network
+from network_sequential import NetworkSequential
 from summaries_collector import SummariesCollector
-from path_helper import get_base_directory, init_dir, serialize_compress
+from path_helper import get_base_directory, init_dir, serialize_compress, get_config_directory
 from log_utils import init_log, print_and_log, close_log
-from trainer_subgoal import TrainerSubgoal
+from trainer_sequential import TrainerSequential
 
 
 def _get_game(config):
     if 'point_robot' in config['general']['scenario']:
-        from point_robot_game_subgoal import PointRobotGameSubgoal
-        return PointRobotGameSubgoal(config)
+        from point_robot_game_sequential import PointRobotGameSequential
+        return PointRobotGameSequential(config)
     if 'panda' in config['general']['scenario']:
-        from panda_game_subgoal import PandaGameSubgoal
-        return PandaGameSubgoal(config)
+        assert False
     else:
         assert False
-
-
-def print_policy_weights(sess, network, global_step, reason, logs_dir):
-    names = [v.name for v in network.get_all_variables()]
-    vars = sess.run(network.get_all_variables())
-    weights_log_file = os.path.join(logs_dir, '{}_{}.txt'.format(global_step, reason))
-    with open(weights_log_file, 'a') as f:
-        for i in range(len(names)):
-            f.write('var: {}{}'.format(names[i], os.linesep))
-            f.write('{}{}'.format(vars[i], os.linesep))
-        f.flush()
 
 
 def run_for_config(config):
@@ -44,7 +32,7 @@ def run_for_config(config):
 
     # where we save all the outputs
     scenario = config['general']['scenario']
-    working_dir = os.path.join(get_base_directory(), 'sgt', scenario)
+    working_dir = os.path.join(get_base_directory(), 'sequential', scenario)
     init_dir(working_dir)
 
     saver_dir = os.path.join(working_dir, 'models', model_name)
@@ -59,7 +47,7 @@ def run_for_config(config):
     # generate game
     game = _get_game(config)
 
-    network = Network(config, game)
+    network = NetworkSequential(config, game)
     network_variables = network.get_all_variables()
 
     # save model
@@ -75,36 +63,28 @@ def run_for_config(config):
     ) as sess:
         sess.run(tf.compat.v1.global_variables_initializer())
 
-        policy_function = lambda starts, goals, level, is_train: network.predict_policy(
-            starts, goals, level, sess, is_train)
-        episode_runner = EpisodeRunnerSubgoal(config, game, policy_function)
-        trainer = TrainerSubgoal(model_name, config, working_dir, network, sess, episode_runner, summaries_collector)
+        policy_function = lambda current_states, goals, is_train: network.predict_policy(
+            current_states, goals, sess, is_train)
+        episode_runner = EpisodeRunnerSequential(config, game, policy_function)
+
+        trainer = TrainerSequential(model_name, config, working_dir, network, sess, episode_runner, summaries_collector)
 
         decrease_learn_rate_if_static_success = config['model']['decrease_learn_rate_if_static_success']
         stop_training_after_learn_rate_decrease = config['model']['stop_training_after_learn_rate_decrease']
         reset_best_every = config['model']['reset_best_every']
 
-        current_level = config['model']['starting_level']
-        global_step, first_global_step_of_level = 0, 0
+        global_step = 0
         best_cost, best_cost_global_step = None, None
         no_test_improvement, consecutive_learn_rate_decrease = 0, 0
 
-        if config['general']['weight_printing_frequency'] > 0:
-            print_policy_weights(sess, network, global_step, 'init', weights_log_dir)
-
         for cycle in range(config['general']['training_cycles']):
-            print_and_log('starting cycle {}, level {}'.format(cycle, current_level))
+            print_and_log('starting cycle {}'.format(cycle))
 
-            new_global_step = trainer.train_policy_at_level(current_level, global_step)
-            if new_global_step == global_step:
-                print_and_log('no data found in training cycle {} global step still {}'.format(cycle, global_step))
-                continue
-            else:
-                global_step = new_global_step
+            global_step = trainer.train_policy(global_step)
 
-            if (global_step - first_global_step_of_level) % config['policy']['decrease_std_every'] == 0:
-                network.decrease_base_std(sess, current_level)
-                print_and_log('new base stds {}'.format(network.get_base_stds(sess, current_level)))
+            if global_step % config['policy']['decrease_std_every'] == 0:
+                network.decrease_base_std(sess)
+                print_and_log('new base stds {}'.format(network.get_base_std(sess)))
 
             print_and_log('done training cycle {} global step {}'.format(cycle, global_step))
 
@@ -113,20 +93,15 @@ def run_for_config(config):
                 latest_saver.save(sess, global_step=global_step)
 
             if cycle % config['general']['test_frequency'] == 0:
-                # if trainer.check_gradients:
-                    # trainer.print_gradient(
-                    #     config['gradient_checker']['gradient_points_to_sample'], current_level, cycle)
-
                 # do test
                 test_successes, test_cost, _, endpoints_by_path = trainer.collect_data(
-                    config['general']['test_episodes'], current_level, is_train=False, use_fixed_start_goal_pairs=True)
+                    config['general']['test_episodes'], is_train=False, use_fixed_start_goal_pairs=True)
                 summaries_collector.write_test_success_summaries(sess, global_step, test_successes, test_cost)
 
                 # decide how to act next
                 print_and_log('old cost was {} at step {}'.format(best_cost, best_cost_global_step))
-                should_increase_level = False
-                print_and_log('current learn rates {}'.format(network.get_learn_rates(sess, current_level)))
-                print_and_log('current base stds {}'.format(network.get_base_stds(sess, current_level)))
+                print_and_log('current learn rates {}'.format(network.get_learn_rate(sess)))
+                print_and_log('current base stds {}'.format(network.get_base_std(sess)))
                 if best_cost is None or test_cost < best_cost:
                     print_and_log('new best cost {} at step {}'.format(test_cost, global_step))
                     best_cost, best_cost_global_step = test_cost, global_step
@@ -135,8 +110,6 @@ def run_for_config(config):
                     best_saver.save(sess, global_step)
                     test_trajectories_file = os.path.join(test_trajectories_dir, '{}.txt'.format(global_step))
                     serialize_compress(endpoints_by_path, test_trajectories_file)
-                    if config['general']['weight_printing_frequency'] > 0:
-                        print_policy_weights(sess, network, global_step, 'best', weights_log_dir)
                 else:
                     print_and_log('new model is not the best with cost {} at step {}'.format(test_cost, global_step))
                     no_test_improvement += 1
@@ -149,43 +122,18 @@ def run_for_config(config):
                         # restore the best model
                         if config['model']['restore_on_decrease']:
                             best_saver.restore(sess)
-                        # decrease learn rates
-                        if config['model']['train_levels'] == 'all-below':
-                            levels_to_decrease_learn_rate = range(1, current_level + 1)
-                        elif config['model']['train_levels'] == 'topmost':
-                            levels_to_decrease_learn_rate = range(current_level, current_level + 1)
-                        else:
-                            assert False
-                        for l in levels_to_decrease_learn_rate:
-                            network.decrease_learn_rates(sess, l)
+                        network.decrease_learn_rates(sess)
+
                         no_test_improvement = 0
                         consecutive_learn_rate_decrease += 1
                         print_and_log('decreasing learn rates {} of {}'.format(
                             consecutive_learn_rate_decrease, stop_training_after_learn_rate_decrease)
                         )
-                        print_and_log('new learn rates {}'.format(network.get_learn_rates(sess, current_level)))
+                        print_and_log('new learn rates {}'.format(network.get_learn_rate(sess)))
                         if consecutive_learn_rate_decrease == stop_training_after_learn_rate_decrease:
-                            should_increase_level = True
-
-                if should_increase_level:
-                    best_saver.restore(sess)
-                    current_level += 1
-                    if current_level <= config['model']['levels']:
-                        first_global_step_of_level = global_step
-                        best_cost, best_cost_global_step = None, None
-                        no_test_improvement, consecutive_learn_rate_decrease = 0, 0
-                        if config['model']['init_from_lower_level']:
-                            print_and_log('initiating level {} from previous level'.format(current_level))
-                            network.init_policy_from_lower_level(sess, current_level)
-                    else:
-                        # return the current level to its correct level for final prediction
-                        current_level -= 1
-                        print_and_log('trained all {} levels - needs to stop'.format(current_level))
-                        break
-
-            if config['general']['weight_printing_frequency'] > 0:
-                if (cycle+1) % config['general']['weight_printing_frequency'] == 0:
-                    print_policy_weights(sess, network, global_step, 'regular', weights_log_dir)
+                            print_and_log('needs to stop')
+                            best_saver.restore(sess)
+                            break
 
             # mark in log the end of cycle
             print_and_log(os.linesep)
@@ -194,12 +142,9 @@ def run_for_config(config):
         print_and_log('testing on a new set of start-goal pairs')
         test_trajectories_file = os.path.join(test_trajectories_dir, '-1.txt')
         endpoints_by_path = trainer.collect_data(
-            config['general']['test_episodes'], current_level, is_train=False,
-            use_fixed_start_goal_pairs=False
+            config['general']['test_episodes'], is_train=False, use_fixed_start_goal_pairs=False
         )[-1]
         serialize_compress(endpoints_by_path, test_trajectories_file)
-        if config['general']['weight_printing_frequency'] > 0:
-            print_policy_weights(sess, network, global_step, 'final', weights_log_dir)
 
         close_log()
         return best_cost
@@ -207,5 +152,6 @@ def run_for_config(config):
 
 if __name__ == '__main__':
     # read the config
-    config = read_config()
+    config_path = os.path.join(get_config_directory(), 'config_sequential.yml')
+    config = read_config(config_path)
     run_for_config(config)

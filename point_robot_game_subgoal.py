@@ -1,14 +1,15 @@
 import numpy as np
 import pickle
 
+from path_helper import get_params_from_config
 from point_robot_manager import PointRobotManager
-from abstract_motion_planning_game import AbstractMotionPlanningGame
+from abstract_motion_planning_game_subgoal import AbstractMotionPlanningGameSubgoal
 
 
-class PointRobotGame(AbstractMotionPlanningGame):
+class PointRobotGameSubgoal(AbstractMotionPlanningGameSubgoal):
     def __init__(self, config):
-        AbstractMotionPlanningGame.__init__(self, config)
-        params_file = self.get_params_from_config(config)
+        AbstractMotionPlanningGameSubgoal.__init__(self, config)
+        params_file = get_params_from_config(config)
         if 'no_obs' in params_file:
             obstacles_definitions_list = []
         else:
@@ -47,21 +48,4 @@ class PointRobotGame(AbstractMotionPlanningGame):
         return (-1., -1.), (1., 1.)
 
     def get_fixed_start_goal_pairs(self):
-        lower = self.lower
-        upper = self.upper
-        assert len(lower) == len(upper)
-        all_pairs = []
-        grid_marks = 11
-        while len(all_pairs) < 1000:
-            grid_states = self._rec_all_states(0, grid_marks)
-            grid_states = [s for s in grid_states if self.is_free_state(s)]
-            all_pairs = [(s1, s2) for s1 in grid_states for s2 in grid_states]
-            grid_marks += 1
-        return all_pairs
-
-    def _rec_all_states(self, state_index, grid_marks):
-        s = np.linspace(self.lower[state_index], self.upper[state_index], grid_marks)
-        if state_index == len(self.lower) - 1:
-            return [[x] for x in s]
-        next_res = self._rec_all_states(state_index + 1, grid_marks)
-        return [[x] + l[:] for l in next_res for x in s]
+        return self.point_robot_manager.get_fixed_start_goal_pairs()

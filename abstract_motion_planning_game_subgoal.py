@@ -1,24 +1,13 @@
-import os
 import numpy as np
 
-from path_helper import get_base_directory
 
-
-class AbstractMotionPlanningGame:
+class AbstractMotionPlanningGameSubgoal:
     def __init__(self, config):
         self.config = config
         lower, upper = self._get_state_bounds()
         self.lower = np.array(lower)
         self.upper = np.array(upper)
         self.state_size = len(lower)
-
-    @staticmethod
-    def get_params_from_config(config):
-        return AbstractMotionPlanningGame.get_params_from_scenario(config['general']['scenario'])
-
-    @staticmethod
-    def get_params_from_scenario(scenario):
-        return os.path.join(get_base_directory(), 'scenario_params', scenario, 'params.pkl')
 
     def get_valid_states(self, states):
         return np.maximum(self.lower, np.minimum(self.upper, states))

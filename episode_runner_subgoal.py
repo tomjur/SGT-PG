@@ -1,7 +1,7 @@
 import numpy as np
 
 
-class EpisodeRunner:
+class EpisodeRunnerSubgoal:
     def __init__(self, config, game, policy_function):
         self.config = config
         self.game = game

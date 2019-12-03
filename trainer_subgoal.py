@@ -7,7 +7,7 @@ from log_utils import print_and_log
 from model_saver import ModelSaver
 
 
-class Trainer:
+class TrainerSubgoal:
     def __init__(self,  model_name, config, working_dir, network, sess, episode_runner, summaries_collector):
         self.model_name = model_name
         self.config = config

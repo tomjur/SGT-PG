@@ -6,13 +6,14 @@ import queue
 import time
 
 from panda_scene_manager import PandaSceneManager
-from abstract_motion_planning_game import AbstractMotionPlanningGame
+from abstract_motion_planning_game_subgoal import AbstractMotionPlanningGameSubgoal
+from path_helper import get_params_from_config
 
 
-class PandaGame(AbstractMotionPlanningGame):
+class PandaGameSubgoal(AbstractMotionPlanningGameSubgoal):
     def __init__(self, config):
         self.panda_scene_manager = self.get_scene_manager(config)
-        AbstractMotionPlanningGame.__init__(self, config)
+        AbstractMotionPlanningGameSubgoal.__init__(self, config)
 
         self.requests_queue = multiprocessing.Queue()
         self.results_queue = multiprocessing.Queue()
@@ -41,13 +42,13 @@ class PandaGame(AbstractMotionPlanningGame):
 
     @staticmethod
     def get_scene_manager(config, use_ui=False):
-        obstacles_definitions_list = PandaGame._get_obstacle_definitions(config)
+        obstacles_definitions_list = PandaGameSubgoal._get_obstacle_definitions(config)
         panda_scene_manager = PandaSceneManager(use_ui=use_ui, obstacle_definitions=obstacles_definitions_list)
         return panda_scene_manager
 
     @staticmethod
     def _get_obstacle_definitions(config):
-        params_file = AbstractMotionPlanningGame.get_params_from_config(config)
+        params_file = get_params_from_config(config)
         if 'no_obs' in params_file:
             obstacles_definitions_list = []
         else:
@@ -68,7 +69,7 @@ class PandaGame(AbstractMotionPlanningGame):
     def is_free_state_in_manager(state, panda_scene_manager):
         if any(np.abs(state) > 1.0):
             return False
-        state_ = PandaGame.virtual_to_real_state(state, panda_scene_manager)
+        state_ = PandaGameSubgoal.virtual_to_real_state(state, panda_scene_manager)
         panda_scene_manager.change_robot_joints(state_)
         is_collision = panda_scene_manager.simulation_step()[1]
         if not panda_scene_manager.is_close(state_):
@@ -187,7 +188,7 @@ class GameWorker(multiprocessing.Process):
 
     def run(self):
         self.random = Random(os.getpid())
-        self.panda_scene_manager = PandaGame.get_scene_manager(self.config)
+        self.panda_scene_manager = PandaGameSubgoal.get_scene_manager(self.config)
         while True:
             try:
                 request = self.requests_queue.get(block=True, timeout=0.001)
@@ -209,11 +210,11 @@ class GameWorker(multiprocessing.Process):
     def check_terminal_segment(self, start, end):
         self.panda_scene_manager.reset_simulation()
         # check the end points
-        truncated_start, truncated_distance_start = PandaGame._truncate_virtual_state(start)
-        truncated_end, truncated_distance_end = PandaGame._truncate_virtual_state(end)
+        truncated_start, truncated_distance_start = PandaGameSubgoal._truncate_virtual_state(start)
+        truncated_end, truncated_distance_end = PandaGameSubgoal._truncate_virtual_state(end)
 
-        start_ = PandaGame.virtual_to_real_state(truncated_start, self.panda_scene_manager)
-        end_ = PandaGame.virtual_to_real_state(truncated_end, self.panda_scene_manager)
+        start_ = PandaGameSubgoal.virtual_to_real_state(truncated_start, self.panda_scene_manager)
+        end_ = PandaGameSubgoal.virtual_to_real_state(truncated_end, self.panda_scene_manager)
 
         is_start_valid, is_goal_valid, sum_free, sum_collision, _ = self.panda_scene_manager.walk_between_waypoints(
             start_, end_)
@@ -228,5 +229,5 @@ class GameWorker(multiprocessing.Process):
         while True:
             state_size = len(self.panda_scene_manager.joints_lower_bounds)
             virtual_state = [self.random.uniform(-1., 1.) for _ in range(state_size)]
-            if PandaGame.is_free_state_in_manager(virtual_state, self.panda_scene_manager):
+            if PandaGameSubgoal.is_free_state_in_manager(virtual_state, self.panda_scene_manager):
                 return virtual_state

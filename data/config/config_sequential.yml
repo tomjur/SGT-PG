@@ -13,7 +13,7 @@ general:
 #  scenario: panda_hard
   gpu_usage: 0.2
   training_cycles: 30000
-  train_episodes_per_cycle: 500
+  train_episodes_per_cycle: 5000
 #  train_episodes_per_cycle: 50
 #  train_episodes_per_cycle: 5
 #  test_episodes: 1
@@ -21,12 +21,10 @@ general:
   save_every_cycles: 1000000
   cycles_per_trajectory_print: 1000000
   test_frequency: 3
-#  test_frequency: 1
-#  weight_printing_frequency: 1000
-  weight_printing_frequency: 0
 
 cost:
   collision_cost: 100.0
+  goal_reward: 100.
   is_constant_collision_cost: False
   free_cost: 1.0
   is_constant_free_cost: False
@@ -36,12 +34,8 @@ cost:
   huber_loss_delta: 1.0
 
 model:
-  levels: 2
-  starting_level: 1
-#  train_levels: 'all-below'
-  train_levels: 'topmost'
-  init_from_lower_level: True
-#  init_from_lower_level: False
+  gamma: 0.95
+  max_steps: 1000
   batch_size: 20000
   reset_best_every: 0
 #  reset_best_every: 50
@@ -49,10 +43,6 @@ model:
   restore_on_decrease: True
 #  restore_on_decrease: False
   stop_training_after_learn_rate_decrease: 3
-#  gain: 'full-traj'
-  gain: 'future-only'
-  repeat_train_trajectories: 10
-#  repeat_train_trajectories: 3
   consecutive_optimization_steps: 1
 
 policy:
@@ -76,11 +66,5 @@ policy:
 #  learn_std: True
 #  bias_activation_is_tanh: True
   bias_activation_is_tanh: False
-  bias_around_midpoint: True
-#  bias_around_midpoint: False
   ppo_epsilon: 0.2
 
-gradient_checker:
-#  enable: True
-  enable: False
-  gradient_points_to_sample: 100
