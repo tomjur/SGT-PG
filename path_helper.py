@@ -16,6 +16,14 @@ def init_dir(dir_path):
         os.makedirs(dir_path)
 
 
+def get_params_from_scenario(scenario):
+    return os.path.join(get_base_directory(), 'scenario_params', scenario, 'params.pkl')
+
+
+def get_params_from_config(config):
+    return get_params_from_scenario(config['general']['scenario'])
+
+
 def serialize_compress(data, path):
     with open(path, 'wb') as zf:
         compressed = zlib.compress(pickle.dumps(data))
