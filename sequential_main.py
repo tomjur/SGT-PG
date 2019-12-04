@@ -19,7 +19,8 @@ def _get_game(config):
         from point_robot_game_sequential import PointRobotGameSequential
         return PointRobotGameSequential(config)
     if 'panda' in config['general']['scenario']:
-        assert False
+        from panda_game_sequential import PandaGameSequential
+        return PandaGameSequential(config)
     else:
         assert False
 

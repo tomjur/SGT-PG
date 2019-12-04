@@ -7,12 +7,11 @@ import time
 
 from panda_scene_manager import PandaSceneManager
 from abstract_motion_planning_game_subgoal import AbstractMotionPlanningGameSubgoal
-from path_helper import get_params_from_config
 
 
 class PandaGameSubgoal(AbstractMotionPlanningGameSubgoal):
     def __init__(self, config):
-        self.panda_scene_manager = self.get_scene_manager(config)
+        self.panda_scene_manager = PandaSceneManager.get_scene_manager(config)
         AbstractMotionPlanningGameSubgoal.__init__(self, config)
 
         self.requests_queue = multiprocessing.Queue()
@@ -40,21 +39,6 @@ class PandaGameSubgoal(AbstractMotionPlanningGameSubgoal):
         # the number of workers is the min between those
         return min(max_episodes, max_cores_with_slack)
 
-    @staticmethod
-    def get_scene_manager(config, use_ui=False):
-        obstacles_definitions_list = PandaGameSubgoal._get_obstacle_definitions(config)
-        panda_scene_manager = PandaSceneManager(use_ui=use_ui, obstacle_definitions=obstacles_definitions_list)
-        return panda_scene_manager
-
-    @staticmethod
-    def _get_obstacle_definitions(config):
-        params_file = get_params_from_config(config)
-        if 'no_obs' in params_file:
-            obstacles_definitions_list = []
-        else:
-            with open(params_file, 'r') as f:
-                obstacles_definitions_list = f.readlines()
-        return obstacles_definitions_list
 
     @staticmethod
     def _truncate_virtual_state(state):
@@ -188,7 +172,7 @@ class GameWorker(multiprocessing.Process):
 
     def run(self):
         self.random = Random(os.getpid())
-        self.panda_scene_manager = PandaGameSubgoal.get_scene_manager(self.config)
+        self.panda_scene_manager = PandaSceneManager.get_scene_manager(self.config)
         while True:
             try:
                 request = self.requests_queue.get(block=True, timeout=0.001)

@@ -4,8 +4,7 @@ import time
 import pybullet as p
 import numpy as np
 
-from log_utils import print_and_log
-from path_helper import get_base_directory
+from path_helper import get_base_directory, get_params_from_config
 
 
 class PandaSceneManager:
@@ -423,3 +422,19 @@ class PandaSceneManager:
             free_length = 0.0
             collision_length = segment_length
         return True, free_length, collision_length, visited_states
+
+    @staticmethod
+    def get_scene_manager(config, use_ui=False):
+        obstacles_definitions_list = PandaSceneManager._get_obstacle_definitions(config)
+        panda_scene_manager = PandaSceneManager(use_ui=use_ui, obstacle_definitions=obstacles_definitions_list)
+        return panda_scene_manager
+
+    @staticmethod
+    def _get_obstacle_definitions(config):
+        params_file = get_params_from_config(config)
+        if 'no_obs' in params_file:
+            obstacles_definitions_list = []
+        else:
+            with open(params_file, 'r') as f:
+                obstacles_definitions_list = f.readlines()
+        return obstacles_definitions_list
