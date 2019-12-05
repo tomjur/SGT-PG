@@ -13,8 +13,8 @@ general:
 #  scenario: panda_hard
   gpu_usage: 0.2
   training_cycles: 30000
-  train_episodes_per_cycle: 5000
-#  train_episodes_per_cycle: 50
+#  train_episodes_per_cycle: 5000
+  train_episodes_per_cycle: 50
 #  train_episodes_per_cycle: 5
 #  test_episodes: 1
   test_episodes: 100
@@ -60,10 +60,11 @@ policy:
 #  activation: 'relu'
   activation: 'tanh'
   base_std: 0.05
-  decrease_std_every: 1000
+  decrease_std_every: 50
   std_decrease_rate: 0.8
   learn_std: False
 #  learn_std: True
+  max_entropy_coefficient: 1.
 #  bias_activation_is_tanh: True
   bias_activation_is_tanh: False
   ppo_epsilon: 0.2

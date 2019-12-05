@@ -198,11 +198,17 @@ class PolicyNetwork:
         advantage = tf.expand_dims(policy_ratio, axis=1) * self.label_inputs
         clipped_advantage = tf.expand_dims(clipped_ratio, axis=1) * self.label_inputs
 
-        # compute the loss
+        # compute the cost loss
         self.cost_loss = tf.reduce_mean(tf.maximum(advantage, clipped_advantage))
 
+        # compute the max entropy loss
+        self.entropy_loss = 0.0
+        if self.config['policy']['max_entropy_coefficient'] > 0. and self.config['policy']['learn_std']:
+            entropy = self.prediction_distribution.entropy()
+            self.entropy_loss = -self.config['policy']['max_entropy_coefficient'] * tf.reduce_mean(entropy)
+
         # optimize
-        self.total_loss = self.cost_loss
+        self.total_loss = self.cost_loss + self.entropy_loss
         self.learn_rate_variable = tf.Variable(
             self.config['policy']['learning_rate'], trainable=False, name='learn_rate_variable')
         new_learn_rate = tf.maximum(self.config['policy']['learning_rate_minimum'],
@@ -223,6 +229,7 @@ class PolicyNetwork:
         # summaries
         merge_summaries = [
             tf.compat.v1.summary.scalar('{}_cost_loss'.format(self.name_prefix), self.cost_loss),
+            tf.compat.v1.summary.scalar('{}_entropy_loss'.format(self.name_prefix), self.entropy_loss),
             tf.compat.v1.summary.scalar('{}_total_loss'.format(self.name_prefix), self.total_loss),
             tf.compat.v1.summary.scalar('{}_learn_rate'.format(self.name_prefix), self.learn_rate_variable),
             tf.compat.v1.summary.scalar('{}_weights_norm'.format(self.name_prefix), norm),
@@ -287,8 +294,9 @@ class PolicyNetwork:
             )
             split_normal_dist_parameters = tf.split(normal_dist_parameters, 2, axis=1)
             bias = split_normal_dist_parameters[0]
-            std = split_normal_dist_parameters[1] + base_std
-            std = tf.squeeze(tf.exp(std), axis=1)
+            std = split_normal_dist_parameters[1]
+            std = tf.math.softplus(std)
+            std = std + base_std
         else:
             normal_dist_parameters = tf.layers.dense(
                 current,  self.state_size, activation=None,
