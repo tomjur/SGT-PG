@@ -1,5 +1,6 @@
 import datetime
 import tensorflow as tf
+import numpy as np
 import os
 import time
 
@@ -75,8 +76,12 @@ def run_for_config(config):
     ) as sess:
         sess.run(tf.compat.v1.global_variables_initializer())
 
-        policy_function = lambda starts, goals, level, is_train: network.predict_policy(
-            starts, goals, level, sess, is_train)
+        def policy_function(starts, goals, level, is_train):
+            res = network.predict_policy(starts, goals, level, sess, is_train)
+            if np.any(np.isnan(res)):
+                print_and_log('######################## Nan predictions detected...')
+            return res
+
         episode_runner = EpisodeRunnerSubgoal(config, game, policy_function)
         trainer = TrainerSubgoal(model_name, config, working_dir, network, sess, episode_runner, summaries_collector)
 

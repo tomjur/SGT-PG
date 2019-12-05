@@ -20,5 +20,10 @@ def optimize_by_loss(loss, parameters_to_optimize, learning_rate, gradient_limit
         clipped_gradients_norm = tf.linalg.global_norm(gradients)
     else:
         clipped_gradients_norm = initial_gradients_norm
-    optimize_op = optimizer.apply_gradients(zip(gradients, variables))
-    return initial_gradients_norm, clipped_gradients_norm, optimize_op
+    grad_checks = [
+        tf.check_numerics(g, 'gradients of {} are not numeric'.format(variables[i].name))
+        for i, g in enumerate(gradients)
+    ]
+    with tf.control_dependencies(grad_checks):
+        optimize_op = optimizer.apply_gradients(zip(gradients, variables))
+        return initial_gradients_norm, clipped_gradients_norm, optimize_op

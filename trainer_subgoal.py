@@ -1,6 +1,7 @@
 import os
 import random
 import numpy as np
+from tensorflow.python.framework.errors_impl import InvalidArgumentError
 
 from path_helper import init_dir
 from log_utils import print_and_log
@@ -68,10 +69,15 @@ class TrainerSubgoal:
             for update_step in range(self.config['model']['consecutive_optimization_steps']):
                 starts, ends, middles, costs = zip(*random.sample(valid_data, min(self.batch_size, len(valid_data))))
                 costs = self._process_costs(starts, ends, costs, level)
-                summaries, prediction_loss, _ = self.network.train_policy(
-                    level, starts, ends, middles, costs, self.sess)
-                self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
-                global_step += 1
+                try:
+                    summaries, prediction_loss, _ = self.network.train_policy(
+                        level, starts, ends, middles, costs, self.sess)
+                    self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
+                    global_step += 1
+                except InvalidArgumentError as error:
+                    print('error encountered')
+                    break
+
         return global_step
 
     def _process_costs(self, starts, ends, costs, level):

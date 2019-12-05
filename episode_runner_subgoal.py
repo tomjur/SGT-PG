@@ -60,8 +60,10 @@ class EpisodeRunnerSubgoal:
         for i in range(len(endpoints)-1):
             start, end = endpoints[i], endpoints[i+1]
             cost_response = cost_responses[i]
-            assert all(np.equal(start, cost_response[0]))
-            assert all(np.equal(end, cost_response[1]))
+            assert all(np.equal(start, cost_response[0])), 'i {} start {} cost_response[0] {} endpoints {}'.format(
+                i, start, cost_response[0], endpoints)
+            assert all(np.equal(end, cost_response[1])), 'i {} end {} cost_response[1] {} endpoints {}'.format(
+                i, end, cost_response[1], endpoints)
             is_start_valid, is_goal_valid, free_length, collision_length = cost_response[2:]
             is_segment_valid = collision_length == 0.0
             cost = self._get_cost(free_length, collision_length)
