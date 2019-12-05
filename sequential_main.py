@@ -83,7 +83,7 @@ def run_for_config(config):
 
             global_step = trainer.train_policy(global_step)
 
-            if global_step % config['policy']['decrease_std_every'] == 0:
+            if (cycle+1) % config['policy']['decrease_std_every'] == 0:
                 network.decrease_base_std(sess)
                 print_and_log('new base stds {}'.format(network.get_base_std(sess)))
 
