@@ -90,7 +90,7 @@ def run_for_config(config):
         reset_best_every = config['model']['reset_best_every']
 
         current_level = config['model']['starting_level']
-        global_step, first_global_step_of_level = 0, 0
+        global_step, first_cycle_of_level = 0, 0
         best_cost, best_cost_global_step = None, None
         no_test_improvement, consecutive_learn_rate_decrease = 0, 0
 
@@ -107,7 +107,7 @@ def run_for_config(config):
             else:
                 global_step = new_global_step
 
-            if (global_step - first_global_step_of_level) % config['policy']['decrease_std_every'] == 0:
+            if (cycle - first_cycle_of_level + 1) % config['policy']['decrease_std_every'] == 0:
                 network.decrease_base_std(sess, current_level)
                 print_and_log('new base stds {}'.format(network.get_base_stds(sess, current_level)))
 
@@ -176,7 +176,7 @@ def run_for_config(config):
                     best_saver.restore(sess)
                     current_level += 1
                     if current_level <= config['model']['levels']:
-                        first_global_step_of_level = global_step
+                        first_cycle_of_level = cycle
                         best_cost, best_cost_global_step = None, None
                         no_test_improvement, consecutive_learn_rate_decrease = 0, 0
                         if config['model']['init_from_lower_level']:
