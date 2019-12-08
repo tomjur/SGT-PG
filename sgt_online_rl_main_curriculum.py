@@ -197,6 +197,7 @@ def run_for_config(config):
 
         print_and_log('end of run best: {} from step: {}'.format(best_cost, best_cost_global_step))
         print_and_log('testing on a new set of start-goal pairs')
+        best_saver.restore(sess)
         test_trajectories_file = os.path.join(test_trajectories_dir, '-1.txt')
         endpoints_by_path = trainer.collect_data(
             config['general']['test_episodes'], current_level, is_train=False,
