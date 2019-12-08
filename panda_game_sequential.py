@@ -13,6 +13,7 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
     def __init__(self, config):
         self.panda_scene_manager = PandaSceneManager.get_scene_manager(config)
         AbstractMotionPlanningGameSequential.__init__(self, config)
+        self.closeness = 0.01
 
         self.requests_queue = multiprocessing.Queue()
         self.results_queue = multiprocessing.Queue()
@@ -24,7 +25,7 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
 
         self.workers = [
             GameWorker(config, self.requests_queue, self.worker_specific_requests_queue[i], self.results_queue,
-                       self.worker_specific_response_queue[i])
+                       self.worker_specific_response_queue[i], self.closeness)
             for i in range(self.number_of_workers)
         ]
 
@@ -205,7 +206,8 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
             states[path_id].append(new_state)
             goal_joints = goals[path_id][:self.panda_scene_manager.number_of_joints]
             goal_velocity = goals[path_id][self.panda_scene_manager.number_of_joints:]
-            close_to_goal = self.are_close(joints, goal_joints) and self.are_close(velocity, goal_velocity)
+            close_to_goal = self.are_close(joints, goal_joints, self.closeness) and self.are_close(
+                velocity, goal_velocity, self.closeness)
             # set the cost, and success status
             if is_collision:
                 cost = self.config['cost']['collision_cost']
@@ -221,10 +223,10 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
                 worker_id = active_path_id_to_worker.pop(path_id)
                 free_workers.append(worker_id)
 
-    def get_free_start_goals(self, number_of_episodes):
+    def get_free_start_goals(self, number_of_episodes, curriculum_coefficient):
         # put all requests
         for i in range(number_of_episodes):
-            self.requests_queue.put((i, None))
+            self.requests_queue.put((i, curriculum_coefficient))
 
         # pull all responses
         results = []
@@ -253,19 +255,21 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
         return s_
 
     @staticmethod
-    def are_close(s1, s2):
-        return np.linalg.norm(np.array(s1) - np.array(s2)) < 0.01
+    def are_close(s1, s2, closeness):
+        return np.linalg.norm(np.array(s1) - np.array(s2)) < closeness
 
 
 class GameWorker(multiprocessing.Process):
     def __init__(
-            self, config, requests_queue, worker_specific_request_queue, results_queue, worker_specific_response_queue):
+            self, config, requests_queue, worker_specific_request_queue, results_queue, worker_specific_response_queue,
+            closeness):
         multiprocessing.Process.__init__(self)
         self.config = config
         self.requests_queue = requests_queue
         self.worker_specific_request_queue = worker_specific_request_queue
         self.results_queue = results_queue
         self.worker_specific_response_queue = worker_specific_response_queue
+        self.closeness = closeness
 
         self._panda_scene_manager = None
         self._random = None
@@ -276,9 +280,9 @@ class GameWorker(multiprocessing.Process):
         self._panda_scene_manager = PandaSceneManager.get_scene_manager(self.config)
         while True:
             try:
-                request = self.requests_queue.get(block=True, timeout=0.001)
+                i, curriculum_coefficient = self.requests_queue.get(block=True, timeout=0.001)
                 # for now there is only one message - the random start goal.
-                self.results_queue.put(self.get_valid_start_goal())
+                self.results_queue.put(self.get_valid_start_goal(curriculum_coefficient))
             except queue.Empty:
                 time.sleep(0.001)
             try:
@@ -313,18 +317,28 @@ class GameWorker(multiprocessing.Process):
         self._panda_scene_manager.set_movement_target(action)
         return self._panda_scene_manager.simulation_step()
 
-    def get_valid_start_goal(self):
+    def get_valid_start_goal(self, curriculum_coefficient):
         self._is_in_episode = False
         while True:
             state_size = self._panda_scene_manager.number_of_joints
             virtual_state1 = [self._random.uniform(-1., 1.) for _ in range(state_size)]
-            virtual_state2 = [self._random.uniform(-1., 1.) for _ in range(state_size)]
-            if PandaGameSequential.are_close(virtual_state1, virtual_state2):
-                continue
             if not PandaGameSequential.is_free_state_in_manager(virtual_state1, self._panda_scene_manager):
                 continue
-            if not PandaGameSequential.is_free_state_in_manager(virtual_state2, self._panda_scene_manager):
-                continue
+            virtual_state2 = [self._random.uniform(-1., 1.) for _ in range(state_size)]
+            if curriculum_coefficient is None:
+                # do not use curriculum
+                if PandaGameSequential.are_close(virtual_state1, virtual_state2, self.closeness):
+                    continue
+                if not PandaGameSequential.is_free_state_in_manager(virtual_state2, self._panda_scene_manager):
+                    continue
+            else:
+                # use curriculum
+                direction = virtual_state2.copy()
+                direction = direction / np.linalg.norm(direction)
+                direction *= self.closeness
+                size = np.random.uniform(1., curriculum_coefficient)
+                direction *= size
+                virtual_state2 = virtual_state1 + direction
             virtual_state1 = virtual_state1 + [0.] * state_size
             virtual_state2 = virtual_state2 + [0.] * state_size
             return np.array(virtual_state1), np.array(virtual_state2)

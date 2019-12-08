@@ -66,7 +66,8 @@ def run_for_config(config):
 
         policy_function = lambda current_states, goals, is_train: network.predict_policy(
             current_states, goals, sess, is_train)
-        episode_runner = EpisodeRunnerSequential(config, game, policy_function)
+        episode_runner = EpisodeRunnerSequential(
+            config, game, policy_function, curriculum_coefficient=2.0)
 
         trainer = TrainerSequential(model_name, config, working_dir, network, sess, episode_runner, summaries_collector)
 
@@ -75,13 +76,13 @@ def run_for_config(config):
         reset_best_every = config['model']['reset_best_every']
 
         global_step = 0
-        best_cost, best_cost_global_step = None, None
+        best_cost, best_cost_global_step, best_curriculum_coefficient = None, None, None
         no_test_improvement, consecutive_learn_rate_decrease = 0, 0
 
         for cycle in range(config['general']['training_cycles']):
             print_and_log('starting cycle {}'.format(cycle))
 
-            global_step = trainer.train_policy(global_step)
+            global_step, success_ratio = trainer.train_policy(global_step)
 
             if (cycle+1) % config['policy']['decrease_std_every'] == 0:
                 network.decrease_base_std(sess)
@@ -106,6 +107,7 @@ def run_for_config(config):
                 if best_cost is None or test_cost < best_cost:
                     print_and_log('new best cost {} at step {}'.format(test_cost, global_step))
                     best_cost, best_cost_global_step = test_cost, global_step
+                    best_curriculum_coefficient = episode_runner.curriculum_coefficient
                     no_test_improvement = 0
                     consecutive_learn_rate_decrease = 0
                     best_saver.save(sess, global_step)
@@ -119,10 +121,12 @@ def run_for_config(config):
                     if reset_best_every > 0 and no_test_improvement % reset_best_every == reset_best_every - 1:
                         # restore the model every once in a while if did not find a better solution in a while
                         best_saver.restore(sess)
+                        episode_runner.curriculum_coefficient = best_curriculum_coefficient
                     if no_test_improvement == decrease_learn_rate_if_static_success:
                         # restore the best model
                         if config['model']['restore_on_decrease']:
                             best_saver.restore(sess)
+                            episode_runner.curriculum_coefficient = best_curriculum_coefficient
                         network.decrease_learn_rates(sess)
 
                         no_test_improvement = 0
@@ -136,11 +140,15 @@ def run_for_config(config):
                             best_saver.restore(sess)
                             break
 
+            if success_ratio > 0.95 and episode_runner.curriculum_coefficient is not None:
+                episode_runner.curriculum_coefficient *= 1.1
+
             # mark in log the end of cycle
             print_and_log(os.linesep)
 
         print_and_log('end of run best: {} from step: {}'.format(best_cost, best_cost_global_step))
         print_and_log('testing on a new set of start-goal pairs')
+        best_saver.restore(sess)
         test_trajectories_file = os.path.join(test_trajectories_dir, '-1.txt')
         endpoints_by_path = trainer.collect_data(
             config['general']['test_episodes'], is_train=False, use_fixed_start_goal_pairs=False

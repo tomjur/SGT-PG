@@ -34,7 +34,7 @@ cost:
   huber_loss_delta: 1.0
 
 model:
-  gamma: 0.95
+  gamma: 1.
   max_steps: 1000
   batch_size: 20000
   reset_best_every: 0

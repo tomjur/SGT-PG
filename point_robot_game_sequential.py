@@ -20,6 +20,8 @@ class PointRobotGameSequential(AbstractMotionPlanningGameSequential):
         self.collision_cost = self.config['cost']['collision_cost']
         self.goal_reward = self.config['cost']['goal_reward']
 
+        self.goal_closeness_distance = 0.01
+
     def _get_random_state(self):
         dim = self.point_robot_manager.dimension_length
         return np.random.uniform(-dim, dim, 2)
@@ -30,17 +32,29 @@ class PointRobotGameSequential(AbstractMotionPlanningGameSequential):
             if self.point_robot_manager.is_free(state):
                 return state
 
-    @staticmethod
-    def _are_close(s1, s2):
-        return np.linalg.norm(np.array(s1) - np.array(s2)) < 0.01
+    def _are_close(self, s1, s2):
+        return np.linalg.norm(np.array(s1) - np.array(s2)) < self.goal_closeness_distance
 
-    def get_free_start_goals(self, number_of_episodes):
+    def get_free_start_goals(self, number_of_episodes, curriculum_coefficient):
         result = []
         while len(result) < number_of_episodes:
             s = self._get_free_state()
-            g = self._get_free_state()
-            if not self._are_close(s, g):
-                result.append((s, g))
+            if curriculum_coefficient is None:
+                # don't use curriculum, get a free state
+                g = self._get_free_state()
+                if not self._are_close(s, g):
+                    result.append((s, g))
+            else:
+                # use curriculum, choose a direction vector, and advance according to the direction
+                assert curriculum_coefficient > 1.0
+                direction = self._get_random_state()
+                direction = direction / np.linalg.norm(direction)
+                direction *= self.goal_closeness_distance
+                size = np.random.uniform(1., curriculum_coefficient)
+                direction *= size
+                g = s + direction
+                if self.is_free_state(g):
+                    result.append((s, g))
         return result
 
     def is_free_state(self, state):
@@ -69,7 +83,13 @@ class PointRobotGameSequential(AbstractMotionPlanningGameSequential):
             for i, path_id in enumerate(active_path_ids):
                 state = active_current_states[i]
                 action = active_actions[i]
-                next_state = state + action
+                action_size = np.linalg.norm(action)
+                action_ = action.copy()
+                # walk in a limited space
+                if np.linalg.norm(action) > self.goal_closeness_distance:
+                    action_ /= action_size
+                    action_ *= self.goal_closeness_distance
+                next_state = state + action_
                 free_length, collision_length = self.point_robot_manager.get_collision_length_in_segment(
                     state, next_state)
                 at_goal = self._are_close(goals[path_id], next_state)
