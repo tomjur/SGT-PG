@@ -153,7 +153,7 @@ def run_for_config(config):
         best_saver.restore(sess)
         test_trajectories_file = os.path.join(test_trajectories_dir, '-1.txt')
         endpoints_by_path = trainer.collect_data(
-            config['general']['test_episodes'], is_train=False, use_fixed_start_goal_pairs=False
+            config['general']['test_episodes'], is_train=False, use_fixed_start_goal_pairs=True
         )[-1]
         serialize_compress(endpoints_by_path, test_trajectories_file)
 
