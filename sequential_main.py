@@ -141,7 +141,9 @@ def run_for_config(config):
                             break
 
             if success_ratio > 0.95 and episode_runner.curriculum_coefficient is not None:
+                print_and_log('current curriculum coefficient {}'.format(episode_runner.curriculum_coefficient))
                 episode_runner.curriculum_coefficient *= 1.1
+                print_and_log('curriculum coefficient raised to {}'.format(episode_runner.curriculum_coefficient))
 
             # mark in log the end of cycle
             print_and_log(os.linesep)
