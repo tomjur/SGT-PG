@@ -8,8 +8,8 @@ from network_utils import optimize_by_loss, get_activation
 class NetworkSequential:
     def __init__(self, config, game):
         self.config = config
-        self.state_size = game.state_size
-        self.action_size = game.action_size
+        self.state_size = game.get_state_space_size()
+        self.action_size = game.get_action_space_size()
 
         self.current_inputs = tf.compat.v1.placeholder(tf.float32, (None, self.state_size), name='current_inputs')
         self.goal_inputs = tf.compat.v1.placeholder(tf.float32, (None, self.state_size), name='goal_inputs')

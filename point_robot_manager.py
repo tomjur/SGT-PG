@@ -78,7 +78,7 @@ class PointRobotManager:
         while len(all_pairs) < 1000:
             grid_states = self._rec_all_states(0, grid_marks)
             grid_states = [s for s in grid_states if self.is_free(s)]
-            all_pairs = [(s1, s2) for s1 in grid_states for s2 in grid_states]
+            all_pairs = [(np.array(s1), np.array(s2)) for s1 in grid_states for s2 in grid_states]
             grid_marks += 1
         return all_pairs
 

@@ -11,7 +11,7 @@ from abstract_motion_planning_game_subgoal import AbstractMotionPlanningGameSubg
 
 class PandaGameSubgoal(AbstractMotionPlanningGameSubgoal):
     def __init__(self, config):
-        self.panda_scene_manager = PandaSceneManager.get_scene_manager(config)
+        self.panda_scene_manager = PandaSceneManager.get_scene_manager(config['general']['scenario'])
         AbstractMotionPlanningGameSubgoal.__init__(self, config)
 
         self.requests_queue = multiprocessing.Queue()
@@ -172,7 +172,7 @@ class GameWorker(multiprocessing.Process):
 
     def run(self):
         self.random = Random(os.getpid())
-        self.panda_scene_manager = PandaSceneManager.get_scene_manager(self.config)
+        self.panda_scene_manager = PandaSceneManager.get_scene_manager(self.config['general']['scenario'])
         while True:
             try:
                 request = self.requests_queue.get(block=True, timeout=0.001)

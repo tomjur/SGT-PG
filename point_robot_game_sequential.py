@@ -2,25 +2,25 @@ import numpy as np
 import pickle
 
 from abstract_motion_planning_game_sequential import AbstractMotionPlanningGameSequential
-from path_helper import get_params_from_config
+from path_helper import get_params_from_scenario
 from point_robot_manager import PointRobotManager
 
 
 class PointRobotGameSequential(AbstractMotionPlanningGameSequential):
-    def __init__(self, config):
-        AbstractMotionPlanningGameSequential.__init__(self, config)
-        params_file = get_params_from_config(config)
+    def __init__(self, scenario, collision_cost, goal_reward, max_action_limit=None, max_steps=None,
+                 goal_closeness_distance=0.01):
+        params_file = get_params_from_scenario(scenario)
         if 'no_obs' in params_file:
             obstacles_definitions_list = []
         else:
             with open(params_file, 'rb') as f:
                 obstacles_definitions_list = pickle.load(f)
         self.point_robot_manager = PointRobotManager(obstacles_definitions_list)
-        self.max_steps = self.config['model']['max_steps']
-        self.collision_cost = self.config['cost']['collision_cost']
-        self.goal_reward = self.config['cost']['goal_reward']
-
-        self.goal_closeness_distance = 0.01
+        self.max_steps = max_steps
+        self.collision_cost = collision_cost
+        self.goal_reward = goal_reward
+        self.max_action_limit = max_action_limit  # if None, there is no limit and the robot can just teleport
+        self.goal_closeness_distance = goal_closeness_distance
 
     def _get_random_state(self):
         dim = self.point_robot_manager.dimension_length
@@ -60,9 +60,6 @@ class PointRobotGameSequential(AbstractMotionPlanningGameSequential):
     def is_free_state(self, state):
         return self.point_robot_manager.is_free(state)
 
-    def _get_state_bounds(self):
-        return (-1., -1.), (1., 1.)
-
     def get_fixed_start_goal_pairs(self):
         return self.point_robot_manager.get_fixed_start_goal_pairs()
 
@@ -83,13 +80,7 @@ class PointRobotGameSequential(AbstractMotionPlanningGameSequential):
             for i, path_id in enumerate(active_path_ids):
                 state = active_current_states[i]
                 action = active_actions[i]
-                action_size = np.linalg.norm(action)
-                action_ = action.copy()
-                # walk in a limited space
-                if np.linalg.norm(action) > self.goal_closeness_distance:
-                    action_ /= action_size
-                    action_ *= self.goal_closeness_distance
-                next_state = state + action_
+                next_state = state + self._get_actual_action(action)
                 free_length, collision_length = self.point_robot_manager.get_collision_length_in_segment(
                     state, next_state)
                 at_goal = self._are_close(goals[path_id], next_state)
@@ -103,7 +94,10 @@ class PointRobotGameSequential(AbstractMotionPlanningGameSequential):
                 if at_goal and not is_collision:
                     successes[path_id] = True
 
-                done = at_goal or is_collision or len(actions[path_id]) == self.max_steps
+                max_steps_reached = False
+                if self.max_steps is not None:
+                    max_steps_reached = len(actions[path_id]) == self.max_steps
+                done = at_goal or is_collision or max_steps_reached
                 if done:
                     active_pairs.pop(path_id)
         results = {
@@ -112,11 +106,24 @@ class PointRobotGameSequential(AbstractMotionPlanningGameSequential):
         }
         return results
 
+    def _get_actual_action(self, action):
+        action_ = action.copy()
+        if self.max_action_limit is not None:
+            action_size = np.linalg.norm(action_)
+            # walk in a limited space
+            if action_size > self.max_action_limit:
+                action_ /= action_size
+                action_ *= self.max_action_limit
+        return action_
+
     def _get_cost(self, free_length, collision_length, are_close):
         if collision_length > 0.:
             return free_length + self.collision_cost * collision_length
         else:
             return free_length - self.goal_reward * are_close
 
-    def get_sizes(self):
-        return 2, 2
+    def get_state_space_size(self):
+        return 2
+
+    def get_action_space_size(self):
+        return 2

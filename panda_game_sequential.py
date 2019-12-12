@@ -7,24 +7,33 @@ import time
 
 from abstract_motion_planning_game_sequential import AbstractMotionPlanningGameSequential
 from panda_scene_manager import PandaSceneManager
+from path_helper import get_start_goal_from_scenario
 
 
 class PandaGameSequential(AbstractMotionPlanningGameSequential):
-    def __init__(self, config):
-        self.panda_scene_manager = PandaSceneManager.get_scene_manager(config)
-        AbstractMotionPlanningGameSequential.__init__(self, config)
-        self.closeness = 0.01
+    def __init__(self, scenario, goal_reached_reward, collision_cost, keep_alive_cost, max_cores=None, max_steps=None,
+                 goal_closeness_distance=0.01):
+        self.scenario = scenario
+        self.max_steps = max_steps
+        self.goal_reached_reward = goal_reached_reward
+        self.collision_cost = collision_cost
+        self.keep_alive_cost = keep_alive_cost
+
+        self.panda_scene_manager = PandaSceneManager.get_scene_manager(scenario)
+        self.state_size = self.get_state_space_size()
+        self.action_size = self.get_action_space_size()
+        self.closeness = goal_closeness_distance
 
         self.requests_queue = multiprocessing.Queue()
         self.results_queue = multiprocessing.Queue()
 
-        self.number_of_workers = self._get_number_of_workers(config)
+        self.number_of_workers = self._get_number_of_workers(max_cores)
 
         self.worker_specific_requests_queue = [multiprocessing.Queue() for _ in range(self.number_of_workers)]
         self.worker_specific_response_queue = [multiprocessing.Queue() for _ in range(self.number_of_workers)]
 
         self.workers = [
-            GameWorker(config, self.requests_queue, self.worker_specific_requests_queue[i], self.results_queue,
+            GameWorker(scenario, self.requests_queue, self.worker_specific_requests_queue[i], self.results_queue,
                        self.worker_specific_response_queue[i], self.closeness)
             for i in range(self.number_of_workers)
         ]
@@ -32,20 +41,23 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
         for w in self.workers:
             w.start()
 
-    def get_sizes(self):
-        j = self.panda_scene_manager.number_of_joints
-        return j * 2, j
+    def get_state_space_size(self):
+        return self.panda_scene_manager.number_of_joints * 2
+
+    def get_action_space_size(self):
+        return self.panda_scene_manager.number_of_joints
 
     @staticmethod
-    def _get_number_of_workers(config):
+    def _get_number_of_workers(max_cores):
         # return 1  # for debug: set one worker
-        # get configuration values
-        max_episodes = max(config['general']['test_episodes'], config['general']['train_episodes_per_cycle'])
         # get available cpus
         cores = multiprocessing.cpu_count()
         max_cores_with_slack = max(cores - 2, 1)
-        # the number of workers is the min between those
-        return min(max_episodes, max_cores_with_slack)
+        if max_cores is not None:
+            # the number of workers is the min between those
+            return min(max_cores, max_cores_with_slack)
+        else:
+            return max_cores_with_slack
 
     @staticmethod
     def _truncate_virtual_state(state):
@@ -67,55 +79,20 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
         return True
 
     def get_fixed_start_goal_pairs(self):
-        # for now a long straight movement
-        lower = np.array(self.panda_scene_manager.joints_lower_bounds).copy()
-        upper = np.array(self.panda_scene_manager.joints_upper_bounds).copy()
+        with open(get_start_goal_from_scenario(self.scenario), 'r') as f:
+            lines = [l.replace(os.linesep, '').replace('[', '').replace(']', '') for l in f.readlines()]
 
-        scenario = self.config['general']['scenario']
-        if scenario == 'panda_no_obs':
-            s = self.real_to_virtual_state(0.5 * upper + 0.5 * lower, self.panda_scene_manager)
-            g = self.real_to_virtual_state(upper.copy(), self.panda_scene_manager)
-        elif scenario == 'panda_easy':
-            s = upper.copy()
-            s[1] += lower[1]
-            s[1] *= 0.5
-            s[3] += lower[3]
-            s[3] *= 0.5
-            s = self.real_to_virtual_state(s, self.panda_scene_manager)
-
-            g = upper.copy()
-            g[0] = 0.7 * upper[0] + 0.3 * lower[0]
-            g[2] = 0.1 * upper[2] + 0.9 * lower[2]
-            g[3] = 0.4 * upper[3] + 0.6 * lower[3]
-            g[4] = 0.7 * upper[4] + 0.3 * lower[4]
-            g = self.real_to_virtual_state(g, self.panda_scene_manager)
-        elif scenario == 'panda_hard':
-            s = upper.copy()
-            s[0] = 0.7 * upper[0] + 0.3 * lower[0]
-            s[1] = 0.7 * upper[1] + 0.3 * lower[1]
-            s[2] = 0.1 * upper[2] + 0.9 * lower[2]
-            s[3] = 0.4 * upper[3] + 0.6 * lower[3]
-            s[4] = 0.7 * upper[4] + 0.3 * lower[4]
-            s[5] = 0.7 * upper[5] + 0.3 * lower[5]
-            s[6] = 0.7 * upper[6] + 0.3 * lower[6]
-            s = self.real_to_virtual_state(s, self.panda_scene_manager)
-
-            g = upper.copy()
-            g[0] = 0.1 * upper[0] + 0.9 * lower[0]
-            g[1] = 0.6 * upper[1] + 0.4 * lower[1]
-            g[3] = 0.1 * upper[3] + 0.9 * lower[3]
-            g[4] = 0.4 * upper[4] + 0.6 * lower[4]
-            g = self.real_to_virtual_state(g, self.panda_scene_manager)
-        else:
-            assert False
-        # make sure states are free here
-        assert self.is_free_state_in_manager(s, self.panda_scene_manager)
-        assert self.is_free_state_in_manager(g, self.panda_scene_manager)
-        # add the velocity dimensions
-        state_size = self.panda_scene_manager.number_of_joints
-        s = np.concatenate((s, np.array([0.] * state_size)), axis=0)
-        g = np.concatenate((g, np.array([0.] * state_size)), axis=0)
-        return [(np.array(s), np.array(g))]
+        result = []
+        while len(result) * 2 < len(lines):
+            index = len(result)
+            start = np.array([float(f) for f in lines[index].split(', ')])
+            goal = np.array([float(f) for f in lines[index + 1].split(', ')])
+            # add velocity zero.
+            start = np.concatenate((start, np.array([0.] * len(start))), axis=0)
+            goal = np.concatenate((goal, np.array([0.] * len(goal))), axis=0)
+            # append to results
+            result.append((start, goal))
+        return result
 
     def run_episodes(self, start_goal_pairs, is_train, policy_function):
         # remaining_start_goal_pairs contains all the episodes not yet processed
@@ -210,15 +187,18 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
                 velocity, goal_velocity, self.closeness)
             # set the cost, and success status
             if is_collision:
-                cost = self.config['cost']['collision_cost']
+                cost = self.collision_cost
             elif close_to_goal:
-                cost = -self.config['cost']['goal_reward']
+                cost = -self.goal_reached_reward
                 successes[path_id] = True
             else:
-                cost = self.config['cost']['free_cost']
+                cost = self.keep_alive_cost
             costs[path_id].append(cost)
+            max_steps_reached = False
+            if self.max_steps is not None:
+                max_steps_reached = len(states[path_id]) == self.max_steps + 1
             # episode terminated, remove from active pairs
-            if is_collision or close_to_goal:
+            if is_collision or close_to_goal or max_steps_reached:
                 active_start_goal_pairs.pop(path_id)
                 worker_id = active_path_id_to_worker.pop(path_id)
                 free_workers.append(worker_id)
@@ -260,11 +240,10 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
 
 
 class GameWorker(multiprocessing.Process):
-    def __init__(
-            self, config, requests_queue, worker_specific_request_queue, results_queue, worker_specific_response_queue,
-            closeness):
+    def __init__(self, scenario, requests_queue, worker_specific_request_queue, results_queue,
+                 worker_specific_response_queue, closeness):
         multiprocessing.Process.__init__(self)
-        self.config = config
+        self.scenario = scenario
         self.requests_queue = requests_queue
         self.worker_specific_request_queue = worker_specific_request_queue
         self.results_queue = results_queue
@@ -277,7 +256,7 @@ class GameWorker(multiprocessing.Process):
 
     def run(self):
         self._random = Random(os.getpid())
-        self._panda_scene_manager = PandaSceneManager.get_scene_manager(self.config)
+        self._panda_scene_manager = PandaSceneManager.get_scene_manager(self.scenario)
         while True:
             try:
                 i, curriculum_coefficient = self.requests_queue.get(block=True, timeout=0.001)
@@ -339,6 +318,6 @@ class GameWorker(multiprocessing.Process):
                 size = np.random.uniform(1., curriculum_coefficient)
                 direction *= size
                 virtual_state2 = virtual_state1 + direction
-            virtual_state1 = virtual_state1 + [0.] * state_size
-            virtual_state2 = virtual_state2 + [0.] * state_size
+            virtual_state1 = np.concatenate((np.array(virtual_state1), np.array([0.] * state_size)), axis=0)
+            virtual_state2 = np.concatenate((np.array(virtual_state2), np.array([0.] * state_size)), axis=0)
             return np.array(virtual_state1), np.array(virtual_state2)

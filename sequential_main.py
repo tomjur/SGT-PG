@@ -15,12 +15,19 @@ from trainer_sequential import TrainerSequential
 
 
 def _get_game(config):
-    if 'point_robot' in config['general']['scenario']:
+    scenario = config['general']['scenario']
+    if 'point_robot' in scenario:
         from point_robot_game_sequential import PointRobotGameSequential
-        return PointRobotGameSequential(config)
-    if 'panda' in config['general']['scenario']:
+        return PointRobotGameSequential(scenario, config['cost']['collision_cost'], config['cost']['goal_reward'],
+                                        max_action_limit=None, max_steps=config['model']['max_steps'],
+                                        goal_closeness_distance=0.01)
+    if 'panda' in scenario:
         from panda_game_sequential import PandaGameSequential
-        return PandaGameSequential(config)
+        max_cores = max(config['general']['test_episodes'], config['general']['train_episodes_per_cycle'])
+        return PandaGameSequential(
+            scenario, config['cost']['goal_reward'], config['cost']['collision_cost'], config['cost']['free_cost'],
+            max_cores=max_cores, max_steps=config['model']['max_steps'], goal_closeness_distance=0.01
+        )
     else:
         assert False
 

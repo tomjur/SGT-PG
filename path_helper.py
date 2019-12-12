@@ -16,12 +16,16 @@ def init_dir(dir_path):
         os.makedirs(dir_path)
 
 
+def get_scenario_dir(scenario):
+    return os.path.join(get_base_directory(), 'scenario_params', scenario)
+
+
 def get_params_from_scenario(scenario):
-    return os.path.join(get_base_directory(), 'scenario_params', scenario, 'params.pkl')
+    return os.path.join(get_scenario_dir(scenario), 'params.pkl')
 
 
-def get_params_from_config(config):
-    return get_params_from_scenario(config['general']['scenario'])
+def get_start_goal_from_scenario(scenario):
+    return os.path.join(get_scenario_dir(scenario), 'virtual-start-goal.txt')
 
 
 def serialize_compress(data, path):
