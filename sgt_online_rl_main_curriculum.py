@@ -173,7 +173,8 @@ def run_for_config(config):
                             should_increase_level = True
 
                 if should_increase_level:
-                    best_saver.restore(sess)
+                    end_of_level_test(best_cost, best_cost_global_step, best_saver, sess, test_trajectories_dir,
+                                      trainer, current_level)
                     current_level += 1
                     if current_level <= config['model']['levels']:
                         first_cycle_of_level = cycle
@@ -183,9 +184,7 @@ def run_for_config(config):
                             print_and_log('initiating level {} from previous level'.format(current_level))
                             network.init_policy_from_lower_level(sess, current_level)
                     else:
-                        # return the current level to its correct level for final prediction
-                        current_level -= 1
-                        print_and_log('trained all {} levels - needs to stop'.format(current_level))
+                        print_and_log('trained all levels - needs to stop')
                         break
 
             if config['general']['weight_printing_frequency'] > 0:
@@ -195,19 +194,25 @@ def run_for_config(config):
             # mark in log the end of cycle
             print_and_log(os.linesep)
 
-        print_and_log('end of run best: {} from step: {}'.format(best_cost, best_cost_global_step))
-        print_and_log('testing on a new set of start-goal pairs')
-        best_saver.restore(sess)
-        test_trajectories_file = os.path.join(test_trajectories_dir, '-1.txt')
-        endpoints_by_path = trainer.collect_data(
-            config['general']['test_episodes'], current_level, is_train=False, use_fixed_start_goal_pairs=True
-        )[-1]
-        serialize_compress(endpoints_by_path, test_trajectories_file)
+        if current_level < config['model']['levels']:
+            # if we finished because we ran out of cycles, we still need to make one more test
+            end_of_level_test(best_cost, best_cost_global_step, best_saver, sess, test_trajectories_dir, trainer,
+                              current_level)
         if config['general']['weight_printing_frequency'] > 0:
             print_policy_weights(sess, network, global_step, 'final', weights_log_dir)
 
         close_log()
         return best_cost
+
+
+def end_of_level_test(best_cost, best_cost_global_step, best_saver, sess, test_trajectories_dir, trainer, level):
+    print_and_log('end of level {} best: {} from step: {}'.format(level, best_cost, best_cost_global_step))
+    best_saver.restore(sess)
+    test_trajectories_file = os.path.join(test_trajectories_dir, 'level{}.txt'.format(level))
+    endpoints_by_path = trainer.collect_data(
+        config['general']['test_episodes'], level, is_train=False, use_fixed_start_goal_pairs=True
+    )[-1]
+    serialize_compress(endpoints_by_path, test_trajectories_file)
 
 
 if __name__ == '__main__':
