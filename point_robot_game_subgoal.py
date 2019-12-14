@@ -1,7 +1,6 @@
-import numpy as np
 import pickle
 
-from path_helper import get_params_from_config
+from path_helper import get_params_from_scenario
 from point_robot_manager import PointRobotManager
 from abstract_motion_planning_game_subgoal import AbstractMotionPlanningGameSubgoal
 
@@ -9,7 +8,7 @@ from abstract_motion_planning_game_subgoal import AbstractMotionPlanningGameSubg
 class PointRobotGameSubgoal(AbstractMotionPlanningGameSubgoal):
     def __init__(self, config):
         AbstractMotionPlanningGameSubgoal.__init__(self, config)
-        params_file = get_params_from_config(config)
+        params_file = get_params_from_scenario(config['general']['scenario'])
         if 'no_obs' in params_file:
             obstacles_definitions_list = []
         else:
