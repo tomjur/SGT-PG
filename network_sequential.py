@@ -16,9 +16,12 @@ class NetworkSequential:
         self.action_inputs = tf.compat.v1.placeholder(tf.float32, (None, self.action_size), name='action_inputs')
         self.label_inputs = tf.compat.v1.placeholder(tf.float32, (None, 1), name='label_inputs')
 
-        # network is comprised of several policies
+        # network is comprised of policy and value nets
         self.policy_network = PolicyNetwork(config, self.state_size, self.action_size, self.current_inputs,
                                             self.goal_inputs, self.action_inputs, self.label_inputs)
+
+        self.value_network = ValueNetwork(config, self.state_size, self.current_inputs, self.goal_inputs,
+                                          self.label_inputs)
 
         policy_distribution = self.policy_network.prediction_distribution
         self.train_prediction = policy_distribution.sample()
@@ -28,6 +31,11 @@ class NetworkSequential:
         op = self.train_prediction if is_train else self.train_prediction
         return sess.run(op, self._generate_feed_dictionary(current_inputs, goal_inputs))
 
+    def predict_value(self, current_inputs, goal_inputs, sess):
+        return sess.run(
+            self.value_network.value_estimation, self._generate_feed_dictionary(current_inputs, goal_inputs)
+        )
+
     def train_policy(self, current_inputs, goal_inputs, action_inputs, labels, sess):
         feed_dictionary = self._generate_feed_dictionary(
             current_inputs, goal_inputs, action_inputs=action_inputs, labels=labels)
@@ -36,14 +44,22 @@ class NetworkSequential:
         ]
         return sess.run(ops, feed_dictionary)
 
+    def train_value_estimation(self, current_inputs, goal_inputs, labels, sess):
+        feed_dictionary = self._generate_feed_dictionary(
+            current_inputs, goal_inputs, labels=labels)
+        ops = [
+            self.value_network.optimization_summaries, self.value_network.prediction_loss, self.value_network.optimize
+        ]
+        return sess.run(ops, feed_dictionary)
+
     def decrease_learn_rates(self, sess):
-        return sess.run(self.policy_network.decrease_learn_rate_op)
+        return sess.run([self.policy_network.decrease_learn_rate_op, self.value_network.decrease_learn_rate_op])
 
     def decrease_base_std(self, sess):
         return sess.run(self.policy_network.decrease_base_std_op)
 
     def get_learn_rate(self, sess):
-        return sess.run(self.policy_network.learn_rate_variable)
+        return sess.run([self.policy_network.learn_rate_variable, self.value_network.learn_rate_variable])
 
     def get_base_std(self, sess):
         return sess.run(self.policy_network.base_std_variable)
@@ -52,7 +68,7 @@ class NetworkSequential:
         sess.run(self.policy_network.assign_to_baseline_ops)
 
     def get_all_variables(self):
-        return self.policy_network.model_variables
+        return self.policy_network.model_variables + self.value_network.model_variables
 
     def _generate_feed_dictionary(self, current_inputs, goal_inputs, action_inputs=None, labels=None):
         current_inputs_ = np.array(current_inputs)
@@ -242,3 +258,96 @@ class PolicyNetwork:
         elif not is_baseline:
             self._reuse = True
         return distribution, model_variables
+
+
+class ValueNetwork:
+    def __init__(self, config, state_size, current_state_inputs, goal_inputs, label_inputs):
+        self.config = config
+        self.name_prefix = 'sequential_value_estimator'
+        self.state_size = state_size
+        self._reuse = False
+
+        self.current_state_inputs = current_state_inputs
+        self.goal_inputs = goal_inputs
+        self.label_inputs = label_inputs
+
+        # get the prediction
+        self.value_estimation, self.model_variables = self._create_network(self.current_state_inputs, self.goal_inputs)
+
+        # compute the prediction loss
+        self.prediction_loss = tf.losses.mean_squared_error(self.label_inputs, self.value_estimation)
+
+        # optimize
+        self.learn_rate_variable = tf.Variable(
+            self.config['value_estimator']['learning_rate'], trainable=False, name='learn_rate_variable')
+        new_learn_rate = tf.maximum(
+            self.config['value_estimator']['learning_rate_minimum'],
+            self.config['value_estimator']['learning_rate_decrease_rate'] * self.learn_rate_variable
+        )
+        self.decrease_learn_rate_op = tf.compat.v1.assign(self.learn_rate_variable, new_learn_rate)
+
+        self.initial_gradients_norm, self.clipped_gradients_norm, self.optimize = \
+            optimize_by_loss(
+                self.prediction_loss, self.model_variables, self.learn_rate_variable,
+                self.config['value_estimator']['gradient_limit']
+            )
+
+        # summaries
+        merge_summaries = [
+            tf.compat.v1.summary.scalar('{}_value_prediction_loss'.format(self.name_prefix), self.prediction_loss),
+            tf.compat.v1.summary.scalar('{}_learn_rate'.format(self.name_prefix), self.learn_rate_variable),
+        ]
+        if self.initial_gradients_norm is not None:
+            merge_summaries.append(
+                tf.compat.v1.summary.scalar(
+                    '{}_initial_gradients_norm'.format(self.name_prefix),
+                    self.initial_gradients_norm
+                )
+            )
+        if self.clipped_gradients_norm is not None:
+            merge_summaries.append(
+                tf.compat.v1.summary.scalar(
+                    '{}_clipped_gradients_norm'.format(self.name_prefix),
+                    self.clipped_gradients_norm
+                )
+            )
+        self.optimization_summaries = tf.compat.v1.summary.merge(merge_summaries)
+
+    @staticmethod
+    def get_assignment_between_policies(source_policy_variables, target_policy_variables):
+        assign_ops = [
+            tf.compat.v1.assign(var, source_policy_variables[i])
+            for i, var in enumerate(target_policy_variables)
+        ]
+        return assign_ops
+
+    def reuse_policy_network(self, current_state_inputs, goal_inputs):
+        policy_distribution, model_variables = self._create_network(current_state_inputs, goal_inputs)
+        assert len(model_variables) == 0
+        return policy_distribution
+
+    def _create_network(self, current_state_inputs, goal_inputs):
+        reuse = self._reuse
+        name_prefix = self.name_prefix
+        variable_count = len(tf.compat.v1.trainable_variables())
+        activation = get_activation(self.config['value_estimator']['activation'])
+        network_layers = self.config['value_estimator']['layers']
+
+        current_input = tf.concat((current_state_inputs, goal_inputs), axis=1)
+
+        current = current_input
+        for i, layer_size in enumerate(network_layers):
+            current = tf.layers.dense(
+                current, layer_size, activation=activation, name='{}_layer_{}'.format(name_prefix, i), reuse=reuse,
+            )
+
+        value_estimation = tf.layers.dense(
+            current, 1, activation=None, name='{}_prediction'.format(name_prefix), reuse=reuse
+        )
+
+        model_variables = tf.compat.v1.trainable_variables()[variable_count:]
+        if reuse:
+            assert len(model_variables) == 0
+        else:
+            self._reuse = True
+        return value_estimation, model_variables

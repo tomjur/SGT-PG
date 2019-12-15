@@ -30,6 +30,11 @@ class TrainerSequential:
         for update_step in range(self.config['model']['consecutive_optimization_steps']):
             states, goals, actions, costs = zip(*random.sample(dataset, min(self.batch_size, len(dataset))))
             costs = np.expand_dims(np.array(costs), axis=-1)
+            value_estimations = self.network.predict_value(states, goals, self.sess)
+            # optimize the value estimation with respect to the actual cost
+            summaries, prediction_loss, _ = self.network.train_value_estimation(states, goals, costs, self.sess)
+            self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
+            # reduce the value estimate from the costs and train the policy
             summaries, prediction_loss, _ = self.network.train_policy(states, goals, actions, costs, self.sess)
             self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
             global_step += 1

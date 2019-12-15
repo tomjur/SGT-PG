@@ -69,3 +69,15 @@ policy:
   bias_activation_is_tanh: False
   ppo_epsilon: 0.2
 
+value_estimator:
+  learning_rate: 0.001
+#  learning_rate: 0.005
+  learning_rate_decrease_rate: 1.
+#  learning_rate_decrease_rate: 0.8
+  learning_rate_minimum: 0.0005
+  gradient_limit: 0.0
+#  layers: [5, 5]
+  layers: [20, 20, 20]
+#  activation: 'elu'
+#  activation: 'relu'
+  activation: 'tanh'
