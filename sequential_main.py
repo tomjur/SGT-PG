@@ -105,7 +105,9 @@ def run_for_config(config):
                 # do test
                 test_successes, test_cost, _, endpoints_by_path = trainer.collect_data(
                     config['general']['test_episodes'], is_train=False, use_fixed_start_goal_pairs=True)
-                summaries_collector.write_test_success_summaries(sess, global_step, test_successes, test_cost)
+                summaries_collector.write_test_success_summaries(
+                    sess, global_step, test_successes, test_cost, episode_runner.curriculum_coefficient
+                )
 
                 # decide how to act next
                 print_and_log('old cost was {} at step {}'.format(best_cost, best_cost_global_step))

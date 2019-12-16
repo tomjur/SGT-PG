@@ -22,7 +22,9 @@ class TrainerSequential:
     def train_policy(self, global_step):
         successes, accumulated_cost, dataset, _ = self.collect_data(
             self.train_episodes_per_cycle, is_train=True, use_fixed_start_goal_pairs=False)
-        self.summaries_collector.write_train_success_summaries(self.sess, global_step, successes, accumulated_cost)
+        self.summaries_collector.write_train_success_summaries(
+            self.sess, global_step, successes, accumulated_cost, self.episode_runner.curriculum_coefficient
+        )
 
         # set the baseline to the current policy
         self.network.update_baseline_policy(self.sess)
