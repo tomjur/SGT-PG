@@ -37,6 +37,7 @@ class TrainerSequential:
             summaries, prediction_loss, _ = self.network.train_value_estimation(states, goals, costs, self.sess)
             self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
             # reduce the value estimate from the costs and train the policy
+            costs = costs - value_estimations
             summaries, prediction_loss, _ = self.network.train_policy(states, goals, actions, costs, self.sess)
             self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
             global_step += 1
