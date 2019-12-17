@@ -19,7 +19,7 @@ def _get_game(config):
     if 'point_robot' in scenario:
         from point_robot_game_sequential import PointRobotGameSequential
         return PointRobotGameSequential(scenario, config['cost']['collision_cost'], config['cost']['goal_reward'],
-                                        max_action_limit=None, max_steps=config['model']['max_steps'],
+                                        max_action_limit=0.01, max_steps=config['model']['max_steps'],
                                         goal_closeness_distance=0.01)
     if 'panda' in scenario:
         from panda_game_sequential import PandaGameSequential
