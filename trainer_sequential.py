@@ -41,7 +41,7 @@ class TrainerSequential:
             summaries, prediction_loss, _ = self.network.train_policy(states, goals, actions, costs, self.sess)
             self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
             global_step += 1
-        return global_step, float(successes) / self.train_episodes_per_cycle
+        return global_step, successes
 
     def collect_data(self, count, is_train=True, use_fixed_start_goal_pairs=False):
         print_and_log('collecting {} {} episodes'.format(count, 'train' if is_train else 'test'))
