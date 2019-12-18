@@ -14,12 +14,25 @@ class EpisodeRunnerSubgoal:
 
         self.fixed_start_goal_pairs = self.game.get_fixed_start_goal_pairs()
 
+        self._previous_start_goal_pairs = []
+
     def play_fixed_episodes(self, top_level, is_train=False):
         return self.play_episodes(self.fixed_start_goal_pairs, top_level, is_train)
 
     def play_random_episodes(self, number_of_episodes, top_level, is_train):
-        free_random_states = self.game.get_free_states(number_of_episodes * 2)
-        start_goal_pairs = [(free_random_states[2*i], free_random_states[2*i+1]) for i in range(number_of_episodes)]
+        start_goal_pairs = []
+        for pair in self._previous_start_goal_pairs:
+            if np.random.uniform() < 0.8:
+                start_goal_pairs.append(pair)
+
+        number_new_pairs = number_of_episodes - len(start_goal_pairs)
+
+        free_random_states = self.game.get_free_states(number_new_pairs * 2)
+        start_goal_pairs = start_goal_pairs + [
+            (free_random_states[2*i], free_random_states[2*i+1]) for i in range(number_new_pairs)
+        ]
+        self._previous_start_goal_pairs = start_goal_pairs
+        # start_goal_pairs = start_goal_pairs + self.fixed_start_goal_pairs
         return self.play_episodes(start_goal_pairs, top_level, is_train)
 
     def play_episodes(self, start_goal_pairs, top_level, is_train):
