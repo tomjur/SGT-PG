@@ -308,8 +308,6 @@ class GameWorker(multiprocessing.Process):
                 # do not use curriculum
                 if PandaGameSequential.are_close(virtual_state1, virtual_state2, self.closeness):
                     continue
-                if not PandaGameSequential.is_free_state_in_manager(virtual_state2, self._panda_scene_manager):
-                    continue
             else:
                 # use curriculum
                 direction = virtual_state2.copy()
@@ -318,6 +316,10 @@ class GameWorker(multiprocessing.Process):
                 size = np.random.uniform(1., curriculum_coefficient)
                 direction *= size
                 virtual_state2 = virtual_state1 + direction
+
+            if not PandaGameSequential.is_free_state_in_manager(virtual_state2, self._panda_scene_manager):
+                continue
+
             virtual_state1 = np.concatenate((np.array(virtual_state1), np.array([0.] * state_size)), axis=0)
             virtual_state2 = np.concatenate((np.array(virtual_state2), np.array([0.] * state_size)), axis=0)
             return np.array(virtual_state1), np.array(virtual_state2)
