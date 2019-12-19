@@ -1,4 +1,5 @@
 import pickle
+import numpy as np
 
 from path_helper import get_params_from_scenario
 from point_robot_manager import PointRobotManager
@@ -6,9 +7,8 @@ from abstract_motion_planning_game_subgoal import AbstractMotionPlanningGameSubg
 
 
 class PointRobotGameSubgoal(AbstractMotionPlanningGameSubgoal):
-    def __init__(self, config):
-        AbstractMotionPlanningGameSubgoal.__init__(self, config)
-        params_file = get_params_from_scenario(config['general']['scenario'])
+    def __init__(self, scenario):
+        params_file = get_params_from_scenario(scenario)
         if 'no_obs' in params_file:
             obstacles_definitions_list = []
         else:
@@ -31,20 +31,40 @@ class PointRobotGameSubgoal(AbstractMotionPlanningGameSubgoal):
         free_length, collision_length = self.point_robot_manager.get_collision_length_in_segment(start, goal)
         return start, goal, is_start_free, is_goal_free, free_length, collision_length
 
-    def get_free_states(self, number_of_states):
+    def _get_random_state(self):
+        dim = self.point_robot_manager.dimension_length
+        return np.random.uniform(-dim, dim, self.get_state_size())
+
+    def _get_free_state(self):
+        while True:
+            state = self._get_random_state()
+            if self.point_robot_manager.is_free(state):
+                return state
+
+    def get_free_start_goals(self, number_of_episodes, curriculum_coefficient):
         result = []
-        for _ in range(number_of_states):
-            s = self.get_random_state()
-            while not self.is_free_state(s):
-                s = self.get_random_state()
-            result.append(s)
+        while len(result) < number_of_episodes:
+            s = self._get_free_state()
+            if curriculum_coefficient is None:
+                # don't use curriculum, get a free state
+                g = self._get_free_state()
+                result.append((s, g))
+            else:
+                # use curriculum, choose a direction vector, and advance according to the direction
+                direction = self._get_random_state()
+                direction = direction / np.linalg.norm(direction)
+                size = np.random.uniform(0., curriculum_coefficient)
+                direction *= size
+                g = s + direction
+                if self.is_free_state(g):
+                    result.append((s, g))
         return result
 
     def is_free_state(self, state):
         return self.point_robot_manager.is_free(state)
 
-    def _get_state_bounds(self):
-        return (-1., -1.), (1., 1.)
-
     def get_fixed_start_goal_pairs(self):
         return self.point_robot_manager.get_fixed_start_goal_pairs()
+
+    def get_state_size(self):
+        return 2

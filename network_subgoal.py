@@ -8,7 +8,7 @@ from network_utils import optimize_by_loss, get_activation
 class Network:
     def __init__(self, config, game):
         self.config = config
-        self.state_size = game.state_size
+        self.state_size = game.get_state_size()
         self.levels = self.config['model']['levels']
 
         self.start_inputs = tf.compat.v1.placeholder(tf.float32, (None, self.state_size), name='start_inputs')

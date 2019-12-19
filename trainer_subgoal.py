@@ -55,7 +55,8 @@ class TrainerSubgoal:
     def train_policy_at_level(self, top_level, global_step):
         successes, accumulated_cost, dataset, _ = self.collect_data(
             self.train_episodes_per_cycle, top_level, is_train=True, use_fixed_start_goal_pairs=False)
-        self.summaries_collector.write_train_success_summaries(self.sess, global_step, successes, accumulated_cost)
+        self.summaries_collector.write_train_success_summaries(
+            self.sess, global_step, successes, accumulated_cost, self.episode_runner.curriculum_coefficient)
 
         for level in self._get_relevant_levels(top_level):
             valid_data = [
@@ -78,7 +79,7 @@ class TrainerSubgoal:
                     print('error encountered')
                     break
 
-        return global_step
+        return global_step, successes
 
     def _process_costs(self, starts, ends, costs, level):
         if self.config['model']['repeat_train_trajectories'] > 0:

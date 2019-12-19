@@ -16,12 +16,14 @@ from trainer_subgoal import TrainerSubgoal
 
 
 def _get_game(config):
-    if 'point_robot' in config['general']['scenario']:
+    scenario = config['general']['scenario']
+    if 'point_robot' in scenario:
         from point_robot_game_subgoal import PointRobotGameSubgoal
-        return PointRobotGameSubgoal(config)
-    if 'panda' in config['general']['scenario']:
+        return PointRobotGameSubgoal(scenario)
+    elif 'panda' in scenario:
         from panda_game_subgoal import PandaGameSubgoal
-        return PandaGameSubgoal(config)
+        max_cores = max(config['general']['test_episodes'], config['general']['train_episodes_per_cycle'])
+        return PandaGameSubgoal(scenario, max_cores=max_cores)
     else:
         assert False
 
@@ -82,7 +84,7 @@ def run_for_config(config):
                 print_and_log('######################## Nan predictions detected...')
             return res
 
-        episode_runner = EpisodeRunnerSubgoal(config, game, policy_function)
+        episode_runner = EpisodeRunnerSubgoal(config, game, policy_function, curriculum_coefficient=0.01)
         trainer = TrainerSubgoal(model_name, config, working_dir, network, sess, episode_runner, summaries_collector)
 
         decrease_learn_rate_if_static_success = config['model']['decrease_learn_rate_if_static_success']
@@ -91,7 +93,7 @@ def run_for_config(config):
 
         current_level = config['model']['starting_level']
         global_step, first_cycle_of_level = 0, 0
-        best_cost, best_cost_global_step = None, None
+        best_cost, best_cost_global_step, best_curriculum_coefficient = None, None, None
         no_test_improvement, consecutive_learn_rate_decrease = 0, 0
 
         if config['general']['weight_printing_frequency'] > 0:
@@ -100,7 +102,7 @@ def run_for_config(config):
         for cycle in range(config['general']['training_cycles']):
             print_and_log('starting cycle {}, level {}'.format(cycle, current_level))
 
-            new_global_step = trainer.train_policy_at_level(current_level, global_step)
+            new_global_step, success_ratio = trainer.train_policy_at_level(current_level, global_step)
             if new_global_step == global_step:
                 print_and_log('no data found in training cycle {} global step still {}'.format(cycle, global_step))
                 continue
@@ -125,7 +127,8 @@ def run_for_config(config):
                 # do test
                 test_successes, test_cost, _, endpoints_by_path = trainer.collect_data(
                     config['general']['test_episodes'], current_level, is_train=False, use_fixed_start_goal_pairs=True)
-                summaries_collector.write_test_success_summaries(sess, global_step, test_successes, test_cost)
+                summaries_collector.write_test_success_summaries(
+                    sess, global_step, test_successes, test_cost, episode_runner.curriculum_coefficient)
 
                 # decide how to act next
                 print_and_log('old cost was {} at step {}'.format(best_cost, best_cost_global_step))
@@ -135,6 +138,7 @@ def run_for_config(config):
                 if best_cost is None or test_cost < best_cost:
                     print_and_log('new best cost {} at step {}'.format(test_cost, global_step))
                     best_cost, best_cost_global_step = test_cost, global_step
+                    best_curriculum_coefficient = episode_runner.curriculum_coefficient
                     no_test_improvement = 0
                     consecutive_learn_rate_decrease = 0
                     best_saver.save(sess, global_step)
@@ -150,10 +154,12 @@ def run_for_config(config):
                     if reset_best_every > 0 and no_test_improvement % reset_best_every == reset_best_every - 1:
                         # restore the model every once in a while if did not find a better solution in a while
                         best_saver.restore(sess)
+                        episode_runner.curriculum_coefficient = best_curriculum_coefficient
                     if no_test_improvement == decrease_learn_rate_if_static_success:
                         # restore the best model
                         if config['model']['restore_on_decrease']:
                             best_saver.restore(sess)
+                            episode_runner.curriculum_coefficient = best_curriculum_coefficient
                         # decrease learn rates
                         if config['model']['train_levels'] == 'all-below':
                             levels_to_decrease_learn_rate = range(1, current_level + 1)
@@ -173,8 +179,8 @@ def run_for_config(config):
                             should_increase_level = True
 
                 if should_increase_level:
-                    end_of_level_test(best_cost, best_cost_global_step, best_saver, sess, test_trajectories_dir,
-                                      trainer, current_level)
+                    end_of_level_test(best_cost, best_cost_global_step, best_curriculum_coefficient, best_saver, sess,
+                                      test_trajectories_dir, trainer, current_level)
                     current_level += 1
                     if current_level <= config['model']['levels']:
                         first_cycle_of_level = cycle
@@ -187,6 +193,11 @@ def run_for_config(config):
                         print_and_log('trained all levels - needs to stop')
                         break
 
+            if success_ratio > 0.95 and episode_runner.curriculum_coefficient is not None:
+                print_and_log('current curriculum coefficient {}'.format(episode_runner.curriculum_coefficient))
+                episode_runner.curriculum_coefficient *= 1.1
+                print_and_log('curriculum coefficient raised to {}'.format(episode_runner.curriculum_coefficient))
+
             if config['general']['weight_printing_frequency'] > 0:
                 if (cycle+1) % config['general']['weight_printing_frequency'] == 0:
                     print_policy_weights(sess, network, global_step, 'regular', weights_log_dir)
@@ -196,8 +207,8 @@ def run_for_config(config):
 
         if current_level < config['model']['levels']:
             # if we finished because we ran out of cycles, we still need to make one more test
-            end_of_level_test(best_cost, best_cost_global_step, best_saver, sess, test_trajectories_dir, trainer,
-                              current_level)
+            end_of_level_test(best_cost, best_cost_global_step, best_curriculum_coefficient, best_saver, sess,
+                              test_trajectories_dir, trainer, current_level)
         if config['general']['weight_printing_frequency'] > 0:
             print_policy_weights(sess, network, global_step, 'final', weights_log_dir)
 
@@ -205,9 +216,11 @@ def run_for_config(config):
         return best_cost
 
 
-def end_of_level_test(best_cost, best_cost_global_step, best_saver, sess, test_trajectories_dir, trainer, level):
+def end_of_level_test(best_cost, best_cost_global_step, best_curriculum_coefficient, best_saver, sess,
+                      test_trajectories_dir, trainer, level):
     print_and_log('end of level {} best: {} from step: {}'.format(level, best_cost, best_cost_global_step))
     best_saver.restore(sess)
+    trainer.episode_runner.curriculum_coefficient = best_curriculum_coefficient
     test_trajectories_file = os.path.join(test_trajectories_dir, 'level{}.txt'.format(level))
     endpoints_by_path = trainer.collect_data(
         config['general']['test_episodes'], level, is_train=False, use_fixed_start_goal_pairs=True
