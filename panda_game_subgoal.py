@@ -210,15 +210,13 @@ class GameWorker(multiprocessing.Process):
             if not PandaGameSubgoal.is_free_state_in_manager(virtual_state1, self._panda_scene_manager):
                 continue
             virtual_state2 = [self._random.uniform(-1., 1.) for _ in range(state_size)]
-            if curriculum_coefficient is None:
-                # do not use curriculum
-                if not PandaGameSubgoal.is_free_state_in_manager(virtual_state2, self._panda_scene_manager):
-                    continue
-            else:
+            if curriculum_coefficient is not None:
                 # use curriculum
                 direction = virtual_state2.copy()
                 direction = direction / np.linalg.norm(direction)
-                size = np.random.uniform(0., curriculum_coefficient)
+                original_size = np.linalg.norm(np.array(virtual_state1) - np.array(virtual_state2))
+                size = np.random.uniform(0., min(curriculum_coefficient, original_size))
                 direction *= size
                 virtual_state2 = virtual_state1 + direction
-            return np.array(virtual_state1), np.array(virtual_state2)
+            if PandaGameSubgoal.is_free_state_in_manager(virtual_state2, self._panda_scene_manager):
+                return np.array(virtual_state1), np.array(virtual_state2)
