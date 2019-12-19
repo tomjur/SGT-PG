@@ -85,8 +85,8 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
         result = []
         while len(result) * 2 < len(lines):
             index = len(result)
-            start = np.array([float(f) for f in lines[index].split(', ')])
-            goal = np.array([float(f) for f in lines[index + 1].split(', ')])
+            start = np.array([float(f) for f in lines[2 * index].split(', ')])
+            goal = np.array([float(f) for f in lines[2 * index + 1].split(', ')])
             # add velocity zero.
             start = np.concatenate((start, np.array([0.] * len(start))), axis=0)
             goal = np.concatenate((goal, np.array([0.] * len(goal))), axis=0)
