@@ -7,6 +7,7 @@ import time
 
 from panda_scene_manager import PandaSceneManager
 from abstract_motion_planning_game_subgoal import AbstractMotionPlanningGameSubgoal
+from path_helper import get_start_goal_from_scenario
 
 
 class PandaGameSubgoal(AbstractMotionPlanningGameSubgoal):
@@ -59,50 +60,17 @@ class PandaGameSubgoal(AbstractMotionPlanningGameSubgoal):
         return True
 
     def get_fixed_start_goal_pairs(self):
-        # for now a long straight movement
-        lower = np.array(self.panda_scene_manager.joints_lower_bounds).copy()
-        upper = np.array(self.panda_scene_manager.joints_upper_bounds).copy()
+        with open(get_start_goal_from_scenario(self.scenario), 'r') as f:
+            lines = [l.replace(os.linesep, '').replace('[', '').replace(']', '') for l in f.readlines()]
 
-        if self.scenario == 'panda_no_obs':
-            s = self.real_to_virtual_state(0.5 * upper + 0.5 * lower, self.panda_scene_manager)
-            g = self.real_to_virtual_state(upper.copy(), self.panda_scene_manager)
-        elif self.scenario == 'panda_easy':
-            s = upper.copy()
-            s[1] += lower[1]
-            s[1] *= 0.5
-            s[3] += lower[3]
-            s[3] *= 0.5
-            s = self.real_to_virtual_state(s, self.panda_scene_manager)
-
-            g = upper.copy()
-            g[0] = 0.7 * upper[0] + 0.3 * lower[0]
-            g[2] = 0.1 * upper[2] + 0.9 * lower[2]
-            g[3] = 0.4 * upper[3] + 0.6 * lower[3]
-            g[4] = 0.7 * upper[4] + 0.3 * lower[4]
-            g = self.real_to_virtual_state(g, self.panda_scene_manager)
-        elif self.scenario == 'panda_hard':
-            s = upper.copy()
-            s[0] = 0.7 * upper[0] + 0.3 * lower[0]
-            s[1] = 0.7 * upper[1] + 0.3 * lower[1]
-            s[2] = 0.1 * upper[2] + 0.9 * lower[2]
-            s[3] = 0.4 * upper[3] + 0.6 * lower[3]
-            s[4] = 0.7 * upper[4] + 0.3 * lower[4]
-            s[5] = 0.7 * upper[5] + 0.3 * lower[5]
-            s[6] = 0.7 * upper[6] + 0.3 * lower[6]
-            s = self.real_to_virtual_state(s, self.panda_scene_manager)
-
-            g = upper.copy()
-            g[0] = 0.1 * upper[0] + 0.9 * lower[0]
-            g[1] = 0.6 * upper[1] + 0.4 * lower[1]
-            g[3] = 0.1 * upper[3] + 0.9 * lower[3]
-            g[4] = 0.4 * upper[4] + 0.6 * lower[4]
-            g = self.real_to_virtual_state(g, self.panda_scene_manager)
-        else:
-            assert False
-
-        assert self.is_free_state(s)
-        assert self.is_free_state(g)
-        return [(s, g)]
+        result = []
+        while len(result) * 2 < len(lines):
+            index = len(result)
+            start = np.array([float(f) for f in lines[2 * index].split(', ')])
+            goal = np.array([float(f) for f in lines[2 * index + 1].split(', ')])
+            # append to results
+            result.append((start, goal))
+        return result
 
     def test_predictions(self, cost_queries):
         # put all requests
