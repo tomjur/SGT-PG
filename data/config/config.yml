@@ -81,6 +81,13 @@ policy:
   #  bias_around_midpoint: False
   ppo_epsilon: 0.2
 
+curriculum:
+  use: True
+#  use: False
+  times_std_start_coefficient: 2.
+  raise_times: 1.1
+  raise_when_train_above: 0.95
+
 gradient_checker:
 #  enable: True
   enable: False

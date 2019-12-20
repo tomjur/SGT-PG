@@ -39,6 +39,13 @@ def print_policy_weights(sess, network, global_step, reason, logs_dir):
         f.flush()
 
 
+def get_initial_curriculum(config):
+    if config['curriculum']['use']:
+        return config['policy']['base_std'] * config['curriculum']['times_std_start_coefficient']
+    else:
+        return None
+
+
 def run_for_config(config):
     # set the name of the model
     model_name = config['general']['name']
@@ -84,7 +91,8 @@ def run_for_config(config):
                 print_and_log('######################## Nan predictions detected...')
             return res
 
-        episode_runner = EpisodeRunnerSubgoal(config, game, policy_function, curriculum_coefficient=0.01)
+        episode_runner = EpisodeRunnerSubgoal(config, game, policy_function,
+                                              curriculum_coefficient=get_initial_curriculum(config))
         trainer = TrainerSubgoal(model_name, config, working_dir, network, sess, episode_runner, summaries_collector)
 
         decrease_learn_rate_if_static_success = config['model']['decrease_learn_rate_if_static_success']
@@ -193,10 +201,11 @@ def run_for_config(config):
                         print_and_log('trained all levels - needs to stop')
                         break
 
-            if success_ratio > 0.95 and episode_runner.curriculum_coefficient is not None:
-                print_and_log('current curriculum coefficient {}'.format(episode_runner.curriculum_coefficient))
-                episode_runner.curriculum_coefficient *= 1.1
-                print_and_log('curriculum coefficient raised to {}'.format(episode_runner.curriculum_coefficient))
+            if episode_runner.curriculum_coefficient is not None:
+                if success_ratio > config['curriculum']['raise_when_train_above']:
+                    print_and_log('current curriculum coefficient {}'.format(episode_runner.curriculum_coefficient))
+                    episode_runner.curriculum_coefficient *= config['curriculum']['raise_times']
+                    print_and_log('curriculum coefficient raised to {}'.format(episode_runner.curriculum_coefficient))
 
             if config['general']['weight_printing_frequency'] > 0:
                 if (cycle+1) % config['general']['weight_printing_frequency'] == 0:
