@@ -154,13 +154,11 @@ def run_for_config(config):
                         no_test_improvement, decrease_learn_rate_if_static_success))
                     if reset_best_every > 0 and no_test_improvement % reset_best_every == reset_best_every - 1:
                         # restore the model every once in a while if did not find a better solution in a while
-                        best_saver.restore(sess)
-                        episode_runner.curriculum_coefficient = best_curriculum_coefficient
+                        restore_best(sess, best_saver, best_curriculum_coefficient, trainer)
                     if no_test_improvement == decrease_learn_rate_if_static_success:
                         # restore the best model
                         if config['model']['restore_on_decrease']:
-                            best_saver.restore(sess)
-                            episode_runner.curriculum_coefficient = best_curriculum_coefficient
+                            restore_best(sess, best_saver, best_curriculum_coefficient, trainer)
                         # decrease learn rates
                         if config['model']['train_levels'] == 'all-below':
                             levels_to_decrease_learn_rate = range(1, current_level + 1)
@@ -215,13 +213,17 @@ def run_for_config(config):
 def end_of_level_test(best_cost, best_cost_global_step, best_curriculum_coefficient, best_saver, sess,
                       test_trajectories_dir, trainer, level):
     print_and_log('end of level {} best: {} from step: {}'.format(level, best_cost, best_cost_global_step))
-    best_saver.restore(sess)
-    trainer.episode_runner.curriculum_coefficient = best_curriculum_coefficient
+    restore_best(sess, best_saver, best_curriculum_coefficient, trainer)
     test_trajectories_file = os.path.join(test_trajectories_dir, 'level{}.txt'.format(level))
     endpoints_by_path = trainer.collect_data(
         config['general']['test_episodes'], level, is_train=False, use_fixed_start_goal_pairs=True
     )[-1]
     serialize_compress(endpoints_by_path, test_trajectories_file)
+
+
+def restore_best(sess, best_saver, best_curriculum_coefficient, trainer):
+    best_saver.restore(sess)
+    trainer.episode_runner.curriculum_coefficient = best_curriculum_coefficient
 
 
 if __name__ == '__main__':
