@@ -97,115 +97,104 @@ def run_for_config(config):
         stop_training_after_learn_rate_decrease = config['model']['stop_training_after_learn_rate_decrease']
         reset_best_every = config['model']['reset_best_every']
 
-        current_level = config['model']['starting_level']
-        global_step, first_cycle_of_level = 0, 0
-        best_cost, best_cost_global_step, best_curriculum_coefficient = None, None, None
-        no_test_improvement, consecutive_learn_rate_decrease = 0, 0
+        global_step = 0
+        best_curriculum_coefficient = None
 
-        for cycle in range(config['general']['training_cycles']):
-            print_and_log('starting cycle {}, level {}'.format(cycle, current_level))
+        for current_level in range(config['model']['starting_level'], config['model']['levels']+1):
 
-            new_global_step, success_ratio = trainer.train_policy_at_level(current_level, global_step)
-            if new_global_step == global_step:
-                print_and_log('no data found in training cycle {} global step still {}'.format(cycle, global_step))
-                continue
-            else:
-                global_step = new_global_step
+            best_cost, best_cost_global_step = None, None
+            no_test_improvement, consecutive_learn_rate_decrease = 0, 0
 
-            if (cycle - first_cycle_of_level + 1) % config['policy']['decrease_std_every'] == 0:
-                network.decrease_base_std(sess, current_level)
-                print_and_log('new base stds {}'.format(network.get_base_stds(sess, current_level)))
+            if config['model']['init_from_lower_level'] and current_level > 1:
+                print_and_log('initiating level {} from previous level'.format(current_level))
+                network.init_policy_from_lower_level(sess, current_level)
 
-            print_and_log('done training cycle {} global step {}'.format(cycle, global_step))
+            for cycle in range(config['general']['training_cycles_per_level']):
+                print_and_log('starting cycle {}, level {}'.format(cycle, current_level))
 
-            # save every now and then
-            if cycle % config['general']['save_every_cycles'] == 0:
-                latest_saver.save(sess, global_step=global_step)
-
-            if cycle % config['general']['test_frequency'] == 0:
-                # if trainer.check_gradients:
-                    # trainer.print_gradient(
-                    #     config['gradient_checker']['gradient_points_to_sample'], current_level, cycle)
-
-                # do test
-                test_successes, test_cost, _, endpoints_by_path = trainer.collect_data(
-                    config['general']['test_episodes'], current_level, is_train=False, use_fixed_start_goal_pairs=True)
-                summaries_collector.write_test_success_summaries(
-                    sess, global_step, test_successes, test_cost, episode_runner.curriculum_coefficient)
-
-                # decide how to act next
-                print_and_log('old cost was {} at step {}'.format(best_cost, best_cost_global_step))
-                should_increase_level = False
-                print_and_log('current learn rates {}'.format(network.get_learn_rates(sess, current_level)))
-                print_and_log('current base stds {}'.format(network.get_base_stds(sess, current_level)))
-                if best_cost is None or test_cost < best_cost:
-                    print_and_log('new best cost {} at step {}'.format(test_cost, global_step))
-                    best_cost, best_cost_global_step = test_cost, global_step
-                    best_curriculum_coefficient = episode_runner.curriculum_coefficient
-                    no_test_improvement = 0
-                    consecutive_learn_rate_decrease = 0
-                    best_saver.save(sess, global_step)
-                    test_trajectories_file = os.path.join(test_trajectories_dir, '{}.txt'.format(global_step))
-                    serialize_compress(endpoints_by_path, test_trajectories_file)
+                new_global_step, success_ratio = trainer.train_policy_at_level(current_level, global_step)
+                if new_global_step == global_step:
+                    print_and_log('no data found in training cycle {} global step still {}'.format(cycle, global_step))
+                    continue
                 else:
-                    print_and_log('new model is not the best with cost {} at step {}'.format(test_cost, global_step))
-                    no_test_improvement += 1
-                    print_and_log('no improvement count {} of {}'.format(
-                        no_test_improvement, decrease_learn_rate_if_static_success))
-                    if reset_best_every > 0 and no_test_improvement % reset_best_every == reset_best_every - 1:
-                        # restore the model every once in a while if did not find a better solution in a while
-                        restore_best(sess, best_saver, best_curriculum_coefficient, trainer)
-                    if no_test_improvement == decrease_learn_rate_if_static_success:
-                        # restore the best model
-                        if config['model']['restore_on_decrease']:
-                            restore_best(sess, best_saver, best_curriculum_coefficient, trainer)
-                        # decrease learn rates
-                        if config['model']['train_levels'] == 'all-below':
-                            levels_to_decrease_learn_rate = range(1, current_level + 1)
-                        elif config['model']['train_levels'] == 'topmost':
-                            levels_to_decrease_learn_rate = range(current_level, current_level + 1)
-                        else:
-                            assert False
-                        for l in levels_to_decrease_learn_rate:
-                            network.decrease_learn_rates(sess, l)
-                        no_test_improvement = 0
-                        consecutive_learn_rate_decrease += 1
-                        print_and_log('decreasing learn rates {} of {}'.format(
-                            consecutive_learn_rate_decrease, stop_training_after_learn_rate_decrease)
-                        )
-                        print_and_log('new learn rates {}'.format(network.get_learn_rates(sess, current_level)))
-                        if consecutive_learn_rate_decrease == stop_training_after_learn_rate_decrease:
-                            should_increase_level = True
+                    global_step = new_global_step
 
-                if should_increase_level:
-                    end_of_level_test(best_cost, best_cost_global_step, best_curriculum_coefficient, best_saver, sess,
-                                      test_trajectories_dir, trainer, current_level)
-                    current_level += 1
-                    if current_level <= config['model']['levels']:
-                        first_cycle_of_level = cycle
-                        best_cost, best_cost_global_step = None, None
+                if (cycle + 1) % config['policy']['decrease_std_every'] == 0:
+                    network.decrease_base_std(sess, current_level)
+                    print_and_log('new base stds {}'.format(network.get_base_stds(sess, current_level)))
+
+                print_and_log('done training cycle {} global step {}'.format(cycle, global_step))
+
+                # save every now and then
+                if cycle % config['general']['save_every_cycles'] == 0:
+                    latest_saver.save(sess, global_step=global_step)
+
+                if cycle % config['general']['test_frequency'] == 0:
+                    # do test
+                    test_successes, test_cost, _, endpoints_by_path = trainer.collect_data(
+                        config['general']['test_episodes'], current_level, is_train=False,
+                        use_fixed_start_goal_pairs=True
+                    )
+                    summaries_collector.write_test_success_summaries(
+                        sess, global_step, test_successes, test_cost, episode_runner.curriculum_coefficient)
+
+                    # decide how to act next
+                    print_and_log('old cost was {} at step {}'.format(best_cost, best_cost_global_step))
+                    print_and_log('current learn rates {}'.format(network.get_learn_rates(sess, current_level)))
+                    print_and_log('current base stds {}'.format(network.get_base_stds(sess, current_level)))
+                    if best_cost is None or test_cost < best_cost:
+                        print_and_log('new best cost {} at step {}'.format(test_cost, global_step))
+                        best_cost, best_cost_global_step = test_cost, global_step
+                        best_curriculum_coefficient = episode_runner.curriculum_coefficient
                         no_test_improvement, consecutive_learn_rate_decrease = 0, 0
-                        if config['model']['init_from_lower_level']:
-                            print_and_log('initiating level {} from previous level'.format(current_level))
-                            network.init_policy_from_lower_level(sess, current_level)
+                        best_saver.save(sess, global_step)
+                        test_trajectories_file = os.path.join(test_trajectories_dir, '{}.txt'.format(global_step))
+                        serialize_compress(endpoints_by_path, test_trajectories_file)
                     else:
-                        print_and_log('trained all levels - needs to stop')
-                        break
+                        print_and_log('new model is not the best with cost {} at step {}'.format(
+                            test_cost, global_step))
+                        no_test_improvement += 1
+                        print_and_log('no improvement count {} of {}'.format(
+                            no_test_improvement, decrease_learn_rate_if_static_success))
+                        if reset_best_every > 0 and no_test_improvement % reset_best_every == reset_best_every - 1:
+                            # restore the model every once in a while if did not find a better solution in a while
+                            restore_best(sess, best_saver, best_curriculum_coefficient, trainer)
+                        if no_test_improvement == decrease_learn_rate_if_static_success:
+                            # restore the best model
+                            if config['model']['restore_on_decrease']:
+                                restore_best(sess, best_saver, best_curriculum_coefficient, trainer)
+                            # decrease learn rates
+                            if config['model']['train_levels'] == 'all-below':
+                                levels_to_decrease_learn_rate = range(1, current_level + 1)
+                            elif config['model']['train_levels'] == 'topmost':
+                                levels_to_decrease_learn_rate = range(current_level, current_level + 1)
+                            else:
+                                assert False
+                            for l in levels_to_decrease_learn_rate:
+                                network.decrease_learn_rates(sess, l)
+                            no_test_improvement = 0
+                            consecutive_learn_rate_decrease += 1
+                            print_and_log('decreasing learn rates {} of {}'.format(
+                                consecutive_learn_rate_decrease, stop_training_after_learn_rate_decrease)
+                            )
+                            print_and_log('new learn rates {}'.format(network.get_learn_rates(sess, current_level)))
+                            if consecutive_learn_rate_decrease == stop_training_after_learn_rate_decrease:
+                                break
 
-            if episode_runner.curriculum_coefficient is not None:
-                if success_ratio > config['curriculum']['raise_when_train_above']:
-                    print_and_log('current curriculum coefficient {}'.format(episode_runner.curriculum_coefficient))
-                    episode_runner.curriculum_coefficient *= config['curriculum']['raise_times']
-                    print_and_log('curriculum coefficient raised to {}'.format(episode_runner.curriculum_coefficient))
+                if episode_runner.curriculum_coefficient is not None:
+                    if success_ratio > config['curriculum']['raise_when_train_above']:
+                        print_and_log('current curriculum coefficient {}'.format(episode_runner.curriculum_coefficient))
+                        episode_runner.curriculum_coefficient *= config['curriculum']['raise_times']
+                        print_and_log('curriculum coefficient raised to {}'.format(episode_runner.curriculum_coefficient))
 
-            # mark in log the end of cycle
-            print_and_log(os.linesep)
+                # mark in log the end of cycle
+                print_and_log(os.linesep)
 
-        if current_level < config['model']['levels']:
             # if we finished because we ran out of cycles, we still need to make one more test
             end_of_level_test(best_cost, best_cost_global_step, best_curriculum_coefficient, best_saver, sess,
                               test_trajectories_dir, trainer, current_level)
 
+        print_and_log('trained all levels - needs to stop')
         close_log()
         return best_cost
 
@@ -219,6 +208,7 @@ def end_of_level_test(best_cost, best_cost_global_step, best_curriculum_coeffici
         config['general']['test_episodes'], level, is_train=False, use_fixed_start_goal_pairs=True
     )[-1]
     serialize_compress(endpoints_by_path, test_trajectories_file)
+    print_and_log(os.linesep)
 
 
 def restore_best(sess, best_saver, best_curriculum_coefficient, trainer):

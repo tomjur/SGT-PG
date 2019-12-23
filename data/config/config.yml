@@ -12,9 +12,7 @@ general:
 #  scenario: panda_easy
 #  scenario: panda_hard
   gpu_usage: 0.2
-  training_cycles: 30000
-#  train_episodes_per_cycle: 500
-#  train_episodes_per_cycle: 50
+  training_cycles_per_level: 30000
   train_episodes_per_cycle: 5
 #  test_episodes: 1
   test_episodes: 100
