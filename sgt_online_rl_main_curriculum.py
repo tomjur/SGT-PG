@@ -61,8 +61,6 @@ def run_for_config(config):
     init_dir(saver_dir)
     init_log(log_file_path=os.path.join(saver_dir, 'log.txt'))
     copy_config(config, os.path.join(saver_dir, 'config.yml'))
-    weights_log_dir = os.path.join(saver_dir, 'weights_logs')
-    init_dir(weights_log_dir)
     test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name)
     init_dir(test_trajectories_dir)
 
@@ -103,9 +101,6 @@ def run_for_config(config):
         global_step, first_cycle_of_level = 0, 0
         best_cost, best_cost_global_step, best_curriculum_coefficient = None, None, None
         no_test_improvement, consecutive_learn_rate_decrease = 0, 0
-
-        if config['general']['weight_printing_frequency'] > 0:
-            print_policy_weights(sess, network, global_step, 'init', weights_log_dir)
 
         for cycle in range(config['general']['training_cycles']):
             print_and_log('starting cycle {}, level {}'.format(cycle, current_level))
@@ -152,8 +147,6 @@ def run_for_config(config):
                     best_saver.save(sess, global_step)
                     test_trajectories_file = os.path.join(test_trajectories_dir, '{}.txt'.format(global_step))
                     serialize_compress(endpoints_by_path, test_trajectories_file)
-                    if config['general']['weight_printing_frequency'] > 0:
-                        print_policy_weights(sess, network, global_step, 'best', weights_log_dir)
                 else:
                     print_and_log('new model is not the best with cost {} at step {}'.format(test_cost, global_step))
                     no_test_improvement += 1
@@ -207,10 +200,6 @@ def run_for_config(config):
                     episode_runner.curriculum_coefficient *= config['curriculum']['raise_times']
                     print_and_log('curriculum coefficient raised to {}'.format(episode_runner.curriculum_coefficient))
 
-            if config['general']['weight_printing_frequency'] > 0:
-                if (cycle+1) % config['general']['weight_printing_frequency'] == 0:
-                    print_policy_weights(sess, network, global_step, 'regular', weights_log_dir)
-
             # mark in log the end of cycle
             print_and_log(os.linesep)
 
@@ -218,8 +207,6 @@ def run_for_config(config):
             # if we finished because we ran out of cycles, we still need to make one more test
             end_of_level_test(best_cost, best_cost_global_step, best_curriculum_coefficient, best_saver, sess,
                               test_trajectories_dir, trainer, current_level)
-        if config['general']['weight_printing_frequency'] > 0:
-            print_policy_weights(sess, network, global_step, 'final', weights_log_dir)
 
         close_log()
         return best_cost

@@ -22,8 +22,6 @@ general:
   cycles_per_trajectory_print: 1000000
   test_frequency: 3
 #  test_frequency: 1
-#  weight_printing_frequency: 1000
-  weight_printing_frequency: 0
 
 cost:
   collision_cost: 100.0
