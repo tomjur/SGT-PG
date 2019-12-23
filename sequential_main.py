@@ -19,8 +19,9 @@ def _get_game(config):
     if 'point_robot' in scenario:
         from point_robot_game_sequential import PointRobotGameSequential
         return PointRobotGameSequential(scenario, config['cost']['collision_cost'], config['cost']['goal_reward'],
-                                        max_action_limit=0.01, max_steps=config['model']['max_steps'],
-                                        goal_closeness_distance=0.01)
+                                        max_action_limit=config['cost']['goal_closeness_distance'],
+                                        max_steps=config['model']['max_steps'],
+                                        goal_closeness_distance=config['cost']['goal_closeness_distance'])
     if 'panda' in scenario:
         from panda_game_sequential import PandaGameSequential
         max_cores = max(config['general']['test_episodes'], config['general']['train_episodes_per_cycle'])
@@ -30,6 +31,13 @@ def _get_game(config):
         )
     else:
         assert False
+
+
+def get_initial_curriculum(config):
+    if config['curriculum']['use']:
+        return config['curriculum']['times_goal_start_coefficient']
+    else:
+        return None
 
 
 def run_for_config(config):
@@ -74,7 +82,7 @@ def run_for_config(config):
         policy_function = lambda current_states, goals, is_train: network.predict_policy(
             current_states, goals, sess, is_train)
         episode_runner = EpisodeRunnerSequential(
-            config, game, policy_function, curriculum_coefficient=2.0)
+            config, game, policy_function, curriculum_coefficient=get_initial_curriculum(config))
 
         trainer = TrainerSequential(model_name, config, working_dir, network, sess, episode_runner, summaries_collector)
 
@@ -149,10 +157,11 @@ def run_for_config(config):
                             best_saver.restore(sess)
                             break
 
-            if success_ratio > 0.95 and episode_runner.curriculum_coefficient is not None:
-                print_and_log('current curriculum coefficient {}'.format(episode_runner.curriculum_coefficient))
-                episode_runner.curriculum_coefficient *= 1.1
-                print_and_log('curriculum coefficient raised to {}'.format(episode_runner.curriculum_coefficient))
+            if episode_runner.curriculum_coefficient is not None:
+                if success_ratio > config['curriculum']['raise_when_train_above']:
+                    print_and_log('current curriculum coefficient {}'.format(episode_runner.curriculum_coefficient))
+                    episode_runner.curriculum_coefficient *= config['curriculum']['raise_times']
+                    print_and_log('curriculum coefficient raised to {}'.format(episode_runner.curriculum_coefficient))
 
             # mark in log the end of cycle
             print_and_log(os.linesep)
