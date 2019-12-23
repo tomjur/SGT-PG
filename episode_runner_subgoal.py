@@ -6,37 +6,12 @@ class EpisodeRunnerSubgoal:
         self.config = config
         self.game = game
         self.policy_function = policy_function
-        self.curriculum_coefficient = curriculum_coefficient
 
         self.collision_cost = self.config['cost']['collision_cost']
         self.is_constant_collision_cost = self.config['cost']['is_constant_collision_cost']
         self.free_cost = self.config['cost']['free_cost']
         self.is_constant_free_cost = self.config['cost']['is_constant_free_cost']
         self.huber_loss_delta = self.config['cost']['huber_loss_delta']
-
-        self.fixed_start_goal_pairs = self.game.get_fixed_start_goal_pairs()
-
-        self._previous_start_goal_pairs = []
-
-    def play_fixed_episodes(self, top_level, is_train=False):
-        return self.play_episodes(self.fixed_start_goal_pairs, top_level, is_train)
-
-    def play_random_episodes(self, number_of_episodes, top_level, is_train):
-        start_goal_pairs = self.game.get_free_start_goals(number_of_episodes, self.curriculum_coefficient)
-        # start_goal_pairs = []
-        # for pair in self._previous_start_goal_pairs:
-        #     if np.random.uniform() < 0.8:
-        #         start_goal_pairs.append(pair)
-        #
-        # number_new_pairs = number_of_episodes - len(start_goal_pairs)
-        #
-        # free_random_states = self.game.get_free_states(number_new_pairs * 2)
-        # start_goal_pairs = start_goal_pairs + [
-        #     (free_random_states[2*i], free_random_states[2*i+1]) for i in range(number_new_pairs)
-        # ]
-        # self._previous_start_goal_pairs = start_goal_pairs
-        # start_goal_pairs = start_goal_pairs + self.fixed_start_goal_pairs
-        return self.play_episodes(start_goal_pairs, top_level, is_train)
 
     def play_episodes(self, start_goal_pairs, top_level, is_train):
         if is_train and self.config['model']['repeat_train_trajectories'] > 0:

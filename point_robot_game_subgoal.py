@@ -63,7 +63,9 @@ class PointRobotGameSubgoal(AbstractMotionPlanningGameSubgoal):
     def is_free_state(self, state):
         return self.point_robot_manager.is_free(state)
 
-    def get_fixed_start_goal_pairs(self):
+    def get_fixed_start_goal_pairs(self, challenging=False):
+        if challenging:
+            return [(np.array((-0.9, -0.9)), np.array((0.9, 0.9)))]
         return self.point_robot_manager.get_fixed_start_goal_pairs()
 
     def get_state_size(self):

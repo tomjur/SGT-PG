@@ -9,7 +9,8 @@ from model_saver import ModelSaver
 
 
 class TrainerSubgoal:
-    def __init__(self,  model_name, config, working_dir, network, sess, episode_runner, summaries_collector):
+    def __init__(self,  model_name, config, working_dir, network, sess, episode_runner, summaries_collector,
+                 curriculum_coefficient=None):
         self.model_name = model_name
         self.config = config
         self.working_dir = working_dir
@@ -17,6 +18,10 @@ class TrainerSubgoal:
         self.sess = sess
         self.episode_runner = episode_runner
         self.summaries_collector = summaries_collector
+        self.curriculum_coefficient = curriculum_coefficient
+
+        self.fixed_start_goal_pairs = self.episode_runner.game.get_fixed_start_goal_pairs(challenging=False)
+        self.hard_fixed_start_goal_pairs = self.episode_runner.game.get_fixed_start_goal_pairs(challenging=True)
 
         self.batch_size = config['model']['batch_size']
         self.steps_per_trajectory_print = config['general']['cycles_per_trajectory_print']
@@ -32,6 +37,7 @@ class TrainerSubgoal:
             self.gradient_saver = ModelSaver(saver_dir, 1, 'gradient_checker', print_log=False)
         else:
             self.gradient_output_dir, self.gradient_saver = None, None
+
 
     @staticmethod
     def _reduce_mean_by_start_goal(starts, ends, costs):
@@ -53,10 +59,9 @@ class TrainerSubgoal:
         return new_costs
 
     def train_policy_at_level(self, top_level, global_step):
-        successes, accumulated_cost, dataset, _ = self.collect_data(
-            self.train_episodes_per_cycle, top_level, is_train=True, use_fixed_start_goal_pairs=False)
+        successes, accumulated_cost, dataset, _ = self.collect_train_data(self.train_episodes_per_cycle, top_level)
         self.summaries_collector.write_train_success_summaries(
-            self.sess, global_step, successes, accumulated_cost, self.episode_runner.curriculum_coefficient)
+            self.sess, global_step, successes, accumulated_cost, self.curriculum_coefficient)
 
         for level in self._get_relevant_levels(top_level):
             valid_data = [
@@ -88,12 +93,21 @@ class TrainerSubgoal:
 
         return costs
 
-    def collect_data(self, count, top_level, is_train=True, use_fixed_start_goal_pairs=False):
-        print_and_log('collecting {} {} episodes of level {}'.format(count, 'train' if is_train else 'test', top_level))
-        if use_fixed_start_goal_pairs:
-            episode_results = self.episode_runner.play_fixed_episodes(top_level, is_train)
+    def collect_train_data(self, count, top_level):
+        print_and_log('collecting {} train episodes of level {}'.format(count, top_level))
+        start_goal_pairs = self.episode_runner.game.get_free_start_goals(count, self.curriculum_coefficient)
+        return self.collect_data(start_goal_pairs, top_level, True)
+
+    def collect_test_data(self, top_level, is_challenging=False):
+        if is_challenging:
+            start_goal_pairs = self.hard_fixed_start_goal_pairs
         else:
-            episode_results = self.episode_runner.play_random_episodes(count, top_level, is_train)
+            start_goal_pairs = self.fixed_start_goal_pairs
+        print_and_log('collecting {} test episodes of level {}'.format(len(start_goal_pairs), top_level))
+        return self.collect_data(start_goal_pairs, top_level, False)
+
+    def collect_data(self, start_goal_pairs, top_level, is_train):
+        episode_results = self.episode_runner.play_episodes(start_goal_pairs, top_level, is_train)
         successes, accumulated_cost, dataset, endpoints_by_path = self._process_episode_results(
             episode_results, top_level)
         print_and_log(

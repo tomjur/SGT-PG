@@ -59,7 +59,7 @@ class PandaGameSubgoal(AbstractMotionPlanningGameSubgoal):
             return False
         return True
 
-    def get_fixed_start_goal_pairs(self):
+    def get_fixed_start_goal_pairs(self, challenging=False):
         with open(get_start_goal_from_scenario(self.scenario), 'r') as f:
             lines = [l.replace(os.linesep, '').replace('[', '').replace(']', '') for l in f.readlines()]
 
@@ -70,6 +70,8 @@ class PandaGameSubgoal(AbstractMotionPlanningGameSubgoal):
             goal = np.array([float(f) for f in lines[2 * index + 1].split(', ')])
             # append to results
             result.append((start, goal))
+        if challenging:
+            return [result[0]]
         return result
 
     def test_predictions(self, cost_queries):

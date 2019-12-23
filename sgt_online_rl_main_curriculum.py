@@ -22,8 +22,7 @@ def _get_game(config):
         return PointRobotGameSubgoal(scenario)
     elif 'panda' in scenario:
         from panda_game_subgoal import PandaGameSubgoal
-        max_cores = max(config['general']['test_episodes'], config['general']['train_episodes_per_cycle'])
-        return PandaGameSubgoal(scenario, max_cores=max_cores)
+        return PandaGameSubgoal(scenario, max_cores=config['general']['train_episodes_per_cycle'])
     else:
         assert False
 
@@ -89,9 +88,9 @@ def run_for_config(config):
                 print_and_log('######################## Nan predictions detected...')
             return res
 
-        episode_runner = EpisodeRunnerSubgoal(config, game, policy_function,
-                                              curriculum_coefficient=get_initial_curriculum(config))
-        trainer = TrainerSubgoal(model_name, config, working_dir, network, sess, episode_runner, summaries_collector)
+        episode_runner = EpisodeRunnerSubgoal(config, game, policy_function)
+        trainer = TrainerSubgoal(model_name, config, working_dir, network, sess, episode_runner, summaries_collector,
+                                 curriculum_coefficient=get_initial_curriculum(config))
 
         decrease_learn_rate_if_static_success = config['model']['decrease_learn_rate_if_static_success']
         stop_training_after_learn_rate_decrease = config['model']['stop_training_after_learn_rate_decrease']
@@ -131,12 +130,9 @@ def run_for_config(config):
 
                 if cycle % config['general']['test_frequency'] == 0:
                     # do test
-                    test_successes, test_cost, _, endpoints_by_path = trainer.collect_data(
-                        config['general']['test_episodes'], current_level, is_train=False,
-                        use_fixed_start_goal_pairs=True
-                    )
+                    test_successes, test_cost, _, endpoints_by_path = trainer.collect_test_data(current_level, False)
                     summaries_collector.write_test_success_summaries(
-                        sess, global_step, test_successes, test_cost, episode_runner.curriculum_coefficient)
+                        sess, global_step, test_successes, test_cost, trainer.curriculum_coefficient)
 
                     # decide how to act next
                     print_and_log('old cost was {} at step {}'.format(best_cost, best_cost_global_step))
@@ -145,7 +141,7 @@ def run_for_config(config):
                     if best_cost is None or test_cost < best_cost:
                         print_and_log('new best cost {} at step {}'.format(test_cost, global_step))
                         best_cost, best_cost_global_step = test_cost, global_step
-                        best_curriculum_coefficient = episode_runner.curriculum_coefficient
+                        best_curriculum_coefficient = trainer.curriculum_coefficient
                         no_test_improvement, consecutive_learn_rate_decrease = 0, 0
                         best_saver.save(sess, global_step)
                         test_trajectories_file = os.path.join(test_trajectories_dir, '{}.txt'.format(global_step))
@@ -181,11 +177,11 @@ def run_for_config(config):
                             if consecutive_learn_rate_decrease == stop_training_after_learn_rate_decrease:
                                 break
 
-                if episode_runner.curriculum_coefficient is not None:
+                if trainer.curriculum_coefficient is not None:
                     if success_ratio > config['curriculum']['raise_when_train_above']:
-                        print_and_log('current curriculum coefficient {}'.format(episode_runner.curriculum_coefficient))
-                        episode_runner.curriculum_coefficient *= config['curriculum']['raise_times']
-                        print_and_log('curriculum coefficient raised to {}'.format(episode_runner.curriculum_coefficient))
+                        print_and_log('current curriculum coefficient {}'.format(trainer.curriculum_coefficient))
+                        trainer.curriculum_coefficient *= config['curriculum']['raise_times']
+                        print_and_log('curriculum coefficient raised to {}'.format(trainer.curriculum_coefficient))
 
                 # mark in log the end of cycle
                 print_and_log(os.linesep)
@@ -203,10 +199,14 @@ def end_of_level_test(best_cost, best_cost_global_step, best_curriculum_coeffici
                       test_trajectories_dir, trainer, level):
     print_and_log('end of level {} best: {} from step: {}'.format(level, best_cost, best_cost_global_step))
     restore_best(sess, best_saver, best_curriculum_coefficient, trainer)
-    test_trajectories_file = os.path.join(test_trajectories_dir, 'level{}.txt'.format(level))
-    endpoints_by_path = trainer.collect_data(
-        config['general']['test_episodes'], level, is_train=False, use_fixed_start_goal_pairs=True
-    )[-1]
+    # test all
+    test_trajectories_file = os.path.join(test_trajectories_dir, 'level{}_all.txt'.format(level))
+    endpoints_by_path = trainer.collect_test_data(level, is_challenging=False)[-1]
+    serialize_compress(endpoints_by_path, test_trajectories_file)
+    print_and_log(os.linesep)
+    # test hard
+    test_trajectories_file = os.path.join(test_trajectories_dir, 'level{}_challenging.txt'.format(level))
+    endpoints_by_path = trainer.collect_test_data(level, is_challenging=True)[-1]
     serialize_compress(endpoints_by_path, test_trajectories_file)
     print_and_log(os.linesep)
 
