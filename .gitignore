@@ -1,5 +1,7 @@
 *.pyc
 data/point_robot_*
 data/panda_*
+data/sgt/
+data/sequential/
 /venv3/
 /data/good_results/
