@@ -2,7 +2,7 @@ import numpy as np
 
 
 class EpisodeRunnerSubgoal:
-    def __init__(self, config, game, policy_function, curriculum_coefficient=None):
+    def __init__(self, config, game, policy_function):
         self.config = config
         self.game = game
         self.policy_function = policy_function
@@ -13,17 +13,24 @@ class EpisodeRunnerSubgoal:
         self.is_constant_free_cost = self.config['cost']['is_constant_free_cost']
         self.huber_loss_delta = self.config['cost']['huber_loss_delta']
 
+        self.repeat_train_trajectories = 0
+        if 'model' in config and 'repeat_train_trajectories' in config['model']:
+            self.repeat_train_trajectories = config['model']['repeat_train_trajectories']
+
     def play_episodes(self, start_goal_pairs, top_level, is_train):
-        if is_train and self.config['model']['repeat_train_trajectories'] > 0:
+        if is_train and self.repeat_train_trajectories:
             start_goal_pairs_ = []
-            for _ in range(self.config['model']['repeat_train_trajectories']):
+            for _ in range(self.repeat_train_trajectories):
                 for s, g in start_goal_pairs:
                     new_pair = (s.copy(), g.copy())
                     start_goal_pairs_.append(new_pair)
             start_goal_pairs = start_goal_pairs_
         starts, goals = zip(*start_goal_pairs)
-        middle_states = self.policy_function(starts, goals, top_level, is_train)
-        endpoints = np.array([np.array(starts)] + middle_states + [np.array(goals)])
+        if top_level > 0:
+            middle_states = self.policy_function(starts, goals, top_level, is_train)
+            endpoints = np.array([np.array(starts)] + middle_states + [np.array(goals)])
+        else:
+            endpoints = np.array([np.array(starts)] + [np.array(goals)])
         endpoints = np.swapaxes(endpoints, 0, 1)
         endpoints = [np.squeeze(e, axis=0) for e in np.vsplit(endpoints, len(endpoints))]
 
