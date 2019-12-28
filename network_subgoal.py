@@ -15,6 +15,7 @@ class Network:
         self.goal_inputs = tf.compat.v1.placeholder(tf.float32, (None, self.state_size), name='goal_inputs')
         self.middle_inputs = tf.compat.v1.placeholder(tf.float32, (None, self.state_size), name='middle_inputs')
         self.label_inputs = tf.compat.v1.placeholder(tf.float32, (None, 1), name='label_inputs')
+        self.gradient_limit_input = tf.compat.v1.placeholder(tf.float32, (), name='gradient_limit_input')
 
         # network is comprised of several policies
         self.policy_networks = {}
@@ -23,7 +24,7 @@ class Network:
             # create policies
             current_policy = PolicyNetwork(
                 config, level, self.state_size, self.start_inputs, self.goal_inputs, self.middle_inputs,
-                self.label_inputs, previous_policy
+                self.label_inputs, self.gradient_limit_input, previous_policy
             )
             self.policy_networks[level] = current_policy
             previous_policy = current_policy
@@ -60,14 +61,19 @@ class Network:
         tree = self.policy_tree_prediction if is_train else self.test_policy_tree_prediction
         return sess.run(tree[level], self._generate_feed_dictionary(start_inputs, goal_inputs))
 
-    def train_policy(self, level, start_inputs, goal_inputs, middle_inputs, labels, sess, symmetric=True):
+    def train_policy(self, level, start_inputs, goal_inputs, middle_inputs, labels, sess, symmetric=True,
+                     report_gradient_information=True, gradient_limit=None):
         assert 1 <= level <= self.levels
         feed_dictionary = self._generate_feed_dictionary(
             start_inputs, goal_inputs, middle_inputs=middle_inputs, labels=labels, symmetric=symmetric)
+        if gradient_limit is not None:
+            feed_dictionary[self.gradient_limit_input] = gradient_limit
         network = self.policy_networks[level]
         ops = [
             network.optimization_summaries, network.cost_loss, network.optimize
         ]
+        if report_gradient_information:
+            ops = [network.initial_gradients_norm, network.clipped_gradients_norm] + ops
         return sess.run(ops, feed_dictionary)
 
     def decrease_learn_rates(self, sess, level):
@@ -148,7 +154,8 @@ class Network:
 
 
 class PolicyNetwork:
-    def __init__(self, config, level, state_size, start_inputs, goal_inputs, middle_inputs, label_inputs, previous_policy):
+    def __init__(self, config, level, state_size, start_inputs, goal_inputs, middle_inputs, label_inputs,
+                 gradient_limit, previous_policy):
         self.config = config
         self.name_prefix = 'policy_level_{}'.format(level)
         self.state_size = state_size
@@ -216,8 +223,7 @@ class PolicyNetwork:
 
         self.initial_gradients_norm, self.clipped_gradients_norm, self.optimize = \
             optimize_by_loss(
-                self.total_loss, self.model_variables, self.learn_rate_variable,
-                self.config['policy']['gradient_limit']
+                self.total_loss, self.model_variables, self.learn_rate_variable, gradient_limit
             )
 
         norm = [(v, np.product([int(s) for s in v.shape])) for v in self.model_variables]
