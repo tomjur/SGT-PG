@@ -27,17 +27,6 @@ def _get_game(config):
         assert False
 
 
-def print_policy_weights(sess, network, global_step, reason, logs_dir):
-    names = [v.name for v in network.get_all_variables()]
-    vars = sess.run(network.get_all_variables())
-    weights_log_file = os.path.join(logs_dir, '{}_{}.txt'.format(global_step, reason))
-    with open(weights_log_file, 'a') as f:
-        for i in range(len(names)):
-            f.write('var: {}{}'.format(names[i], os.linesep))
-            f.write('{}{}'.format(vars[i], os.linesep))
-        f.flush()
-
-
 def get_initial_curriculum(config):
     if config['curriculum']['use']:
         return config['policy']['base_std'] * config['curriculum']['times_std_start_coefficient']

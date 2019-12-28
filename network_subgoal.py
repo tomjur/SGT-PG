@@ -18,7 +18,6 @@ class Network:
 
         # network is comprised of several policies
         self.policy_networks = {}
-        self.value_networks = {}
         previous_policy = None
         for level in range(1, 1+self.levels):
             # create policies
