@@ -313,19 +313,6 @@ class ValueNetwork:
             )
         self.optimization_summaries = tf.compat.v1.summary.merge(merge_summaries)
 
-    @staticmethod
-    def get_assignment_between_policies(source_policy_variables, target_policy_variables):
-        assign_ops = [
-            tf.compat.v1.assign(var, source_policy_variables[i])
-            for i, var in enumerate(target_policy_variables)
-        ]
-        return assign_ops
-
-    def reuse_policy_network(self, current_state_inputs, goal_inputs):
-        policy_distribution, model_variables = self._create_network(current_state_inputs, goal_inputs)
-        assert len(model_variables) == 0
-        return policy_distribution
-
     def _create_network(self, current_state_inputs, goal_inputs):
         reuse = self._reuse
         name_prefix = self.name_prefix
