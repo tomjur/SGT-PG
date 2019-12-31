@@ -38,9 +38,6 @@ class TrainerSubgoal:
         else:
             self.gradient_output_dir, self.gradient_saver = None, None
 
-        self.initial_gradients_by_level = {}
-
-
     @staticmethod
     def _reduce_mean_by_start_goal(starts, ends, costs):
         # compute keys
@@ -59,23 +56,6 @@ class TrainerSubgoal:
         # compute the new costs
         new_costs = [costs[i] - mean_groups[keys[i]] for i in range(len(costs))]
         return new_costs
-
-    def _update_gradient_limit(self, level, gradients):
-        if level not in self.initial_gradients_by_level:
-            self.initial_gradients_by_level[level] = []
-        self.initial_gradients_by_level[level].append(gradients)
-
-    def _get_gradient_limit(self, level):
-        if level not in self.initial_gradients_by_level:
-            # if new level, remove old level
-            old_level = level-1
-            if old_level in self.initial_gradients_by_level:
-                self.initial_gradients_by_level[old_level] = []
-            # return some configuration default
-            return self.config['policy']['gradient_limit']
-        return np.quantile(
-            self.initial_gradients_by_level[level], self.config['policy']['gradient_limit_quantile']
-        )
 
     def train_policy_at_level(self, top_level, global_step):
         successes, accumulated_cost, dataset, _ = self.collect_train_data(self.train_episodes_per_cycle, top_level)
@@ -96,10 +76,8 @@ class TrainerSubgoal:
                 costs = self._process_costs(starts, ends, costs, level)
                 try:
                     initial_gradient_norm, _, summaries, prediction_loss, _ = self.network.train_policy(
-                        level, starts, ends, middles, costs, self.sess, report_gradient_information=True,
-                        gradient_limit=self._get_gradient_limit(top_level)
+                        level, starts, ends, middles, costs, self.sess
                     )
-                    self._update_gradient_limit(top_level, initial_gradient_norm)
                     self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
                     global_step += 1
                 except InvalidArgumentError as error:

@@ -55,8 +55,12 @@ policy:
   learning_rate_decrease_rate: 1.
 #  learning_rate_decrease_rate: 0.8
   learning_rate_minimum: 0.0005
+#  gradient_limit: 0.0
   gradient_limit: 100.0
-  gradient_limit_quantile: 0.1
+#  gradient_limit_quantile:
+  gradient_limit_quantile: 0.5
+#  gradient_history_limit: 0
+  gradient_history_limit: 100
 #  include_middle_state_as_input: True
   include_middle_state_as_input: False
 #  layers: [5, 5]
