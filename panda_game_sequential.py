@@ -1,4 +1,5 @@
 import os
+import random
 from random import Random
 import numpy as np
 import multiprocessing
@@ -12,7 +13,7 @@ from path_helper import get_start_goal_from_scenario
 
 class PandaGameSequential(AbstractMotionPlanningGameSequential):
     def __init__(self, scenario, goal_reached_reward, collision_cost, keep_alive_cost, max_cores=None, max_steps=None,
-                 goal_closeness_distance=0.01):
+                 goal_closeness_distance=0.01, max_queries_buffer_size=1000000, queries_update_freq=2):
         self.scenario = scenario
         self.max_steps = max_steps
         self.goal_reached_reward = goal_reached_reward
@@ -27,16 +28,21 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
         self.requests_queue = multiprocessing.Queue()
         self.results_queue = multiprocessing.Queue()
 
-        self.number_of_workers = self._get_number_of_workers(max_cores)
+        self._number_of_workers = self._get_number_of_workers(max_cores)
 
-        self.worker_specific_requests_queue = [multiprocessing.Queue() for _ in range(self.number_of_workers)]
-        self.worker_specific_response_queue = [multiprocessing.Queue() for _ in range(self.number_of_workers)]
+        self.worker_specific_requests_queue = [multiprocessing.Queue() for _ in range(self._number_of_workers)]
+        self.worker_specific_response_queue = [multiprocessing.Queue() for _ in range(self._number_of_workers)]
 
         self.workers = [
             GameWorker(scenario, self.requests_queue, self.worker_specific_requests_queue[i], self.results_queue,
                        self.worker_specific_response_queue[i], self.closeness)
-            for i in range(self.number_of_workers)
+            for i in range(self._number_of_workers)
         ]
+
+        self._max_queries_buffer_size = max_queries_buffer_size
+        self._queries_update_freq = queries_update_freq
+        self._queries_buffer = []
+        self._queries_update_counter = 0
 
         for w in self.workers:
             w.start()
@@ -103,7 +109,7 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
         # active_start_goal_pairs contains all the episodes being processed
         active_start_goal_pairs = {}
         # data structure for free workers, and the assignment of workers
-        free_workers = [i for i in range(self.number_of_workers)]
+        free_workers = [i for i in range(self._number_of_workers)]
         active_path_id_to_worker = {}
         # holds the results for each path id
         states = {path_id: [remaining_start_goal_pairs[path_id][0]] for path_id in remaining_start_goal_pairs}
@@ -133,7 +139,7 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
     def _employ_workers(self, remaining_start_goal_pairs, active_start_goal_pairs, free_workers,
                         active_path_id_to_worker):
         wait_for_episode_init = []
-        while len(remaining_start_goal_pairs) > 0 and len(active_start_goal_pairs) < self.number_of_workers:
+        while len(remaining_start_goal_pairs) > 0 and len(active_start_goal_pairs) < self._number_of_workers:
             # take a single path definition
             path_id = list(remaining_start_goal_pairs.keys())[0]
             start_goal = remaining_start_goal_pairs.pop(path_id)
@@ -204,9 +210,29 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
                 free_workers.append(worker_id)
 
     def get_free_start_goals(self, number_of_episodes, curriculum_coefficient):
+        # how many episodes to collect?
+        if len(self._queries_buffer) < number_of_episodes:
+            # initial steps - collect enough to sample randomly for a couple of cycles
+            queries_to_generate = max(number_of_episodes * self._queries_update_freq, self._number_of_workers)
+        else:
+            if self._queries_update_counter == self._queries_update_freq:
+                queries_to_generate = self._number_of_workers
+                self._queries_update_counter = 0
+            else:
+                queries_to_generate = 0
+                self._queries_update_counter += 1
+        # collect
+        new_queries = self._get_free_start_goals_from_game(queries_to_generate, curriculum_coefficient)
+        self._queries_buffer.extend(new_queries)
+        # shuffle and remove extra
+        random.shuffle(self._queries_buffer)
+        self._queries_buffer = self._queries_buffer[:self._max_queries_buffer_size]
+        return self._queries_buffer[:number_of_episodes]
+
+    def _get_free_start_goals_from_game(self, number_of_episodes, curriculum_coefficient):
         # put all requests
         for i in range(number_of_episodes):
-            self.requests_queue.put((i, curriculum_coefficient))
+            self.requests_queue.put((i, 0, curriculum_coefficient))
 
         # pull all responses
         results = []
