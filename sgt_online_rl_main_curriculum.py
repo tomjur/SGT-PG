@@ -22,7 +22,8 @@ def _get_game(config):
         return PointRobotGameSubgoal(scenario)
     elif 'panda' in scenario:
         from panda_game_subgoal import PandaGameSubgoal
-        return PandaGameSubgoal(scenario, max_cores=config['general']['train_episodes_per_cycle'])
+        max_cores = config['general']['train_episodes_per_cycle'] * config['model']['repeat_train_trajectories']
+        return PandaGameSubgoal(scenario, max_cores=max_cores)
     else:
         assert False
 
