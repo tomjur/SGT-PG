@@ -23,6 +23,9 @@ def _get_game(config):
     elif 'panda' in scenario:
         from panda_game_subgoal import PandaGameSubgoal
         max_cores = config['general']['train_episodes_per_cycle'] * config['model']['repeat_train_trajectories']
+        limit_workers = config['general']['limit_workers']
+        if limit_workers is not None:
+            max_cores = min(limit_workers, max_cores)
         return PandaGameSubgoal(scenario, max_cores=max_cores)
     else:
         assert False
