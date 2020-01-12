@@ -68,12 +68,16 @@ class TrainerSubgoal:
             ]
             if len(valid_data) == 0:
                 continue
+            # compute the costs now
+            starts, ends, middles, costs = zip(*valid_data)
+            costs = self._process_costs(starts, ends, costs, level)
+            valid_data = list(zip(starts, ends, middles, costs))
+
             # set the baseline to the current policy
             self.network.update_baseline_policy(self.sess, level)
             # do optimization steps
             for update_step in range(self.config['model']['consecutive_optimization_steps']):
                 starts, ends, middles, costs = zip(*random.sample(valid_data, min(self.batch_size, len(valid_data))))
-                costs = self._process_costs(starts, ends, costs, level)
                 try:
                     initial_gradient_norm, _, summaries, prediction_loss, _ = self.network.train_policy(
                         level, starts, ends, middles, costs, self.sess
