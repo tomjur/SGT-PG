@@ -3,12 +3,12 @@ general:
 #  scenario: 'point_robot_easy'
 #  scenario: 'point_robot_easy2'
 #  scenario: 'point_robot_easy2_transposed'
-  scenario: 'point_robot_box_0.2'
+#  scenario: 'point_robot_box_0.2'
 #  scenario: 'point_robot_box_0.8'
 #  scenario: 'point_robot_box_1.6'
 #  scenario: 'point_robot_corridor'
 #  scenario: 'point_robot_hard_corridors'
-#  scenario: panda_no_obs
+  scenario: panda_no_obs
 #  scenario: panda_easy
 #  scenario: panda_hard
   gpu_usage: 0.2
@@ -21,6 +21,7 @@ general:
   save_every_cycles: 1000000
   cycles_per_trajectory_print: 1000000
   test_frequency: 3
+  limit_workers: 30
 
 cost:
   collision_cost: 100.0
