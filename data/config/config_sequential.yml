@@ -49,7 +49,7 @@ model:
   consecutive_optimization_steps: 1
 
 policy:
-  learning_rate: 0.00025
+  learning_rate: 0.001
 #  learning_rate: 0.005
   learning_rate_decrease_rate: 1.
 #  learning_rate_decrease_rate: 0.8
@@ -62,7 +62,7 @@ policy:
 #  activation: 'elu'
 #  activation: 'relu'
   activation: 'tanh'
-  base_std: 0.2
+  base_std: 0.05
   decrease_std_every: 50
   std_decrease_rate: 1.0
   learn_std: False
@@ -73,7 +73,7 @@ policy:
   ppo_epsilon: 0.1
 
 value_estimator:
-  learning_rate: 0.0005
+  learning_rate: 0.005
 #  learning_rate: 0.005
   learning_rate_decrease_rate: 1.
 #  learning_rate_decrease_rate: 0.8
