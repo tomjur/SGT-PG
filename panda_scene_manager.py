@@ -346,11 +346,12 @@ class PandaSceneManager:
 
     def _get_waypoints(self, start, end, max_waypoint_sensetivity_intervals):
         max_step = self.position_sensitivity * max_waypoint_sensetivity_intervals
-        initial_distance = np.linalg.norm(end - start)
-        num_steps = int(np.ceil(initial_distance / max_step))
-
         direction = end - start
-        direction = direction / np.linalg.norm(direction)
+        initial_distance = np.linalg.norm(direction)
+        if initial_distance < 0.0001:
+            return [start, end]
+        num_steps = int(np.ceil(initial_distance / max_step))
+        direction = direction / initial_distance
         waypoints = [start + step*direction for step in np.linspace(0.0, initial_distance, num_steps + 1)]
         assert self.is_close(start, waypoints[0])
         assert self.is_close(end, waypoints[-1])
