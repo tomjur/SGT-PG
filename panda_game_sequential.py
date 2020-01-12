@@ -232,7 +232,7 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
     def _get_free_start_goals_from_game(self, number_of_episodes, curriculum_coefficient):
         # put all requests
         for i in range(number_of_episodes):
-            self.requests_queue.put((i, 0, curriculum_coefficient))
+            self.requests_queue.put((i, curriculum_coefficient))
 
         # pull all responses
         results = []
