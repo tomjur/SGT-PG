@@ -319,7 +319,13 @@ class GameWorker(multiprocessing.Process):
 
     def apply_action(self, action):
         assert self._is_in_episode
-        self._panda_scene_manager.set_movement_target(action)
+        current_joints, _ = self._panda_scene_manager.get_robot_state()
+        current_virtual_joints = PandaGameSequential.real_to_virtual_state(current_joints, self._panda_scene_manager)
+        new_virtual_action = current_virtual_joints + action
+        new_virtual_action = np.maximum(new_virtual_action, -1.)
+        new_virtual_action = np.minimum(new_virtual_action, 1.)
+        movement_target = PandaGameSequential.virtual_to_real_state(new_virtual_action, self._panda_scene_manager)
+        self._panda_scene_manager.set_movement_target(movement_target)
         return self._panda_scene_manager.simulation_step()
 
     def get_valid_start_goal(self, curriculum_coefficient):
