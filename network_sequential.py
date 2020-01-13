@@ -2,6 +2,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import numpy as np
 
+from gradient_limit_manager import GradientLimitManager
 from network_utils import optimize_by_loss, get_activation
 
 
@@ -17,11 +18,14 @@ class NetworkSequential:
         self.label_inputs = tf.compat.v1.placeholder(tf.float32, (None, 1), name='label_inputs')
 
         # network is comprised of policy and value nets
-        self.policy_network = PolicyNetwork(config, self.state_size, self.action_size, self.current_inputs,
-                                            self.goal_inputs, self.action_inputs, self.label_inputs)
+        self.policy_network = PolicyNetwork(
+            config, self.state_size, self.action_size, self.current_inputs, self.goal_inputs, self.action_inputs,
+            self.label_inputs
+        )
 
-        self.value_network = ValueNetwork(config, self.state_size, self.current_inputs, self.goal_inputs,
-                                          self.label_inputs)
+        self.value_network = ValueNetwork(
+            config, self.state_size, self.current_inputs, self.goal_inputs, self.label_inputs,
+        )
 
         policy_distribution = self.policy_network.prediction_distribution
         self.train_prediction = policy_distribution.sample()
@@ -37,20 +41,32 @@ class NetworkSequential:
         )
 
     def train_policy(self, current_inputs, goal_inputs, action_inputs, labels, sess):
+        network = self.policy_network
         feed_dictionary = self._generate_feed_dictionary(
             current_inputs, goal_inputs, action_inputs=action_inputs, labels=labels)
+        network.gradient_limit_manager.update_feed_dict(feed_dictionary, network.name_prefix)
         ops = [
-            self.policy_network.optimization_summaries, self.policy_network.cost_loss, self.policy_network.optimize
+            network.initial_gradients_norm, network.clipped_gradients_norm, network.optimization_summaries,
+            network.cost_loss, network.optimize
         ]
-        return sess.run(ops, feed_dictionary)
+        result = sess.run(ops, feed_dictionary)
+        initial_gradients = result[0]
+        network.gradient_limit_manager.update_gradient_limit(network.name_prefix, initial_gradients)
+        return result[2:]
 
     def train_value_estimation(self, current_inputs, goal_inputs, labels, sess):
+        network = self.value_network
         feed_dictionary = self._generate_feed_dictionary(
             current_inputs, goal_inputs, labels=labels)
+        network.gradient_limit_manager.update_feed_dict(feed_dictionary, network.name_prefix)
         ops = [
-            self.value_network.optimization_summaries, self.value_network.prediction_loss, self.value_network.optimize
+            network.initial_gradients_norm, network.clipped_gradients_norm, network.optimization_summaries,
+            network.prediction_loss, network.optimize
         ]
-        return sess.run(ops, feed_dictionary)
+        result = sess.run(ops, feed_dictionary)
+        initial_gradients = result[0]
+        network.gradient_limit_manager.update_gradient_limit(network.name_prefix, initial_gradients)
+        return result[2:]
 
     def decrease_learn_rates(self, sess):
         return sess.run([self.policy_network.decrease_learn_rate_op, self.value_network.decrease_learn_rate_op])
@@ -113,6 +129,13 @@ class PolicyNetwork:
         self.action_inputs = action_inputs
         self.label_inputs = label_inputs
 
+        self.gradient_limit_manager = GradientLimitManager(
+            gradient_limit=config['policy']['gradient_limit'],
+            gradient_limit_quantile=config['policy']['gradient_limit_quantile'],
+            gradient_history_limit=config['policy']['gradient_history_limit'],
+        )
+        self.gradient_limit_placeholder = self.gradient_limit_manager.set_key(self.name_prefix)
+
         self.base_std_variable = tf.Variable(
             self.config['policy']['base_std'], trainable=False, name='base_std_variable')
         new_base_std = self.config['policy']['std_decrease_rate'] * self.base_std_variable
@@ -163,8 +186,7 @@ class PolicyNetwork:
 
         self.initial_gradients_norm, self.clipped_gradients_norm, self.optimize = \
             optimize_by_loss(
-                self.total_loss, self.model_variables, self.learn_rate_variable,
-                self.config['policy']['gradient_limit']
+                self.total_loss, self.model_variables, self.learn_rate_variable, self.gradient_limit_placeholder
             )
 
         norm = [(v, np.product([int(s) for s in v.shape])) for v in self.model_variables]
@@ -271,6 +293,13 @@ class ValueNetwork:
         self.goal_inputs = goal_inputs
         self.label_inputs = label_inputs
 
+        self.gradient_limit_manager = GradientLimitManager(
+            gradient_limit=config['value_estimator']['gradient_limit'],
+            gradient_limit_quantile=config['value_estimator']['gradient_limit_quantile'],
+            gradient_history_limit=config['value_estimator']['gradient_history_limit'],
+        )
+        self.gradient_limit_placeholder = self.gradient_limit_manager.set_key(self.name_prefix)
+
         # get the prediction
         self.value_estimation, self.model_variables = self._create_network(self.current_state_inputs, self.goal_inputs)
 
@@ -288,8 +317,7 @@ class ValueNetwork:
 
         self.initial_gradients_norm, self.clipped_gradients_norm, self.optimize = \
             optimize_by_loss(
-                self.prediction_loss, self.model_variables, self.learn_rate_variable,
-                self.config['value_estimator']['gradient_limit']
+                self.prediction_loss, self.model_variables, self.learn_rate_variable, self.gradient_limit_placeholder
             )
 
         # summaries

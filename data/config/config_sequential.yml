@@ -55,6 +55,11 @@ policy:
 #  learning_rate_decrease_rate: 0.8
   learning_rate_minimum: 0.00025
   gradient_limit: 0.0
+#  gradient_limit: 100.0
+  gradient_limit_quantile:
+#  gradient_limit_quantile: 0.9
+  gradient_history_limit: 0
+#  gradient_history_limit: 100
 #  include_middle_state_as_input: True
   include_middle_state_as_input: False
 #  layers: [5, 5]
@@ -79,6 +84,11 @@ value_estimator:
 #  learning_rate_decrease_rate: 0.8
   learning_rate_minimum: 0.00025
   gradient_limit: 0.0
+#  gradient_limit: 100.0
+  gradient_limit_quantile:
+#  gradient_limit_quantile: 0.9
+  gradient_history_limit: 0
+#  gradient_history_limit: 100
 #  layers: [5, 5]
 #  layers: [50, 50,
   layers: [20, 20, 20]
