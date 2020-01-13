@@ -13,7 +13,7 @@ from path_helper import get_start_goal_from_scenario
 
 class PandaGameSequential(AbstractMotionPlanningGameSequential):
     def __init__(self, scenario, goal_reached_reward, collision_cost, keep_alive_cost, max_cores=None, max_steps=None,
-                 goal_closeness_distance=0.01, max_queries_buffer_size=1000000, queries_update_freq=2):
+                 goal_closeness_distance=0.01, limit_action_distance=None, max_queries_buffer_size=1000000, queries_update_freq=2):
         self.scenario = scenario
         self.max_steps = max_steps
         self.goal_reached_reward = goal_reached_reward
@@ -24,6 +24,7 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
         self.state_size = self.get_state_space_size()
         self.action_size = self.get_action_space_size()
         self.closeness = goal_closeness_distance
+        self.limit_action_distance = limit_action_distance
 
         self.requests_queue = multiprocessing.Queue()
         self.results_queue = multiprocessing.Queue()
@@ -169,6 +170,11 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
         # play the action in the corresponding worker
         for i, path_id in enumerate(path_ids):
             action = predicted_actions[i]
+            if self.limit_action_distance is not None:
+                assert self.limit_action_distance > 0.
+                current_norm = np.linalg.norm(action)
+                if current_norm > self.limit_action_distance:
+                    action = (self.limit_action_distance / current_norm) * action
             message = (1, action)
             worker_id = active_path_id_to_worker[path_id]
             self.worker_specific_requests_queue[worker_id].put(message)

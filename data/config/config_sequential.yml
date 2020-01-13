@@ -21,7 +21,14 @@ general:
   save_every_cycles: 1000000
   cycles_per_trajectory_print: 1000000
   test_frequency: 3
-  limit_workers: 30
+
+panda_game:
+  #  limit_workers: 30
+  limit_workers: 1
+  goal_closeness_distance: 0.01
+#  limit_action_distance:
+  limit_action_distance: 0.1
+
 
 cost:
   collision_cost: 100.0

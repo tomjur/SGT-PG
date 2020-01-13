@@ -25,12 +25,14 @@ def _get_game(config):
     if 'panda' in scenario:
         from panda_game_sequential import PandaGameSequential
         max_cores = max(config['general']['test_episodes'], config['general']['train_episodes_per_cycle'])
-        limit_workers = config['general']['limit_workers']
+        limit_workers = config['panda_game']['limit_workers']
         if limit_workers is not None:
             max_cores = min(limit_workers, max_cores)
         return PandaGameSequential(
             scenario, config['cost']['goal_reward'], config['cost']['collision_cost'], config['cost']['free_cost'],
-            max_cores=max_cores, max_steps=config['model']['max_steps'], goal_closeness_distance=0.01
+            max_cores=max_cores, max_steps=config['model']['max_steps'],
+            goal_closeness_distance=config['panda_game']['goal_closeness_distance'],
+            limit_action_distance=config['panda_game']['limit_action_distance']
         )
     else:
         assert False
