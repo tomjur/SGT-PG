@@ -195,14 +195,22 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
             states[path_id].append(new_state)
             goal_joints = goals[path_id][:self.panda_scene_manager.number_of_joints]
             goal_velocity = goals[path_id][self.panda_scene_manager.number_of_joints:]
-            close_to_goal = self.are_close(joints, goal_joints, self.closeness) and self.are_close(
-                velocity, goal_velocity, self.closeness)
+            close_to_goal = self.are_close(joints, goal_joints, self.closeness)
+            # close_to_goal = self.are_close(joints, goal_joints, self.closeness) and self.are_close(
+            #     velocity, goal_velocity, self.closeness)
             # set the cost, and success status
             if is_collision:
                 cost = self.collision_cost
             elif close_to_goal:
-                cost = -self.goal_reached_reward
-                successes[path_id] = True
+                velocity_norm = np.linalg.norm(velocity)
+                # velocity_cost = self.goal_reached_reward * (1. - np.exp(-velocity_norm))
+                # closeness_cost = -self.goal_reached_reward
+                # cost = velocity_cost + closeness_cost
+                cost = self.goal_reached_reward * (-np.exp(-velocity_norm))
+                if self.are_close(velocity, goal_velocity, self.closeness):
+                    successes[path_id] = True
+                else:
+                    successes[path_id] = False
             else:
                 cost = self.keep_alive_cost
             costs[path_id].append(cost)
@@ -228,6 +236,7 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
                 queries_to_generate = 0
                 self._queries_update_counter += 1
         # collect
+        print('generating {} new queries'.format(queries_to_generate))
         new_queries = self._get_free_start_goals_from_game(queries_to_generate, curriculum_coefficient)
         self._queries_buffer.extend(new_queries)
         # shuffle and remove extra
