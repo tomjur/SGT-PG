@@ -193,6 +193,54 @@ class PandaSceneManager:
         velocities = self.get_robot_state()[1]
         return np.linalg.norm(velocities)
 
+    def smooth_walk(self, goal, max_target_distance=None, sensitivity=None):
+        goal_ = np.array(goal)
+        assert sensitivity is None or sensitivity > 0.
+        if sensitivity is None:
+            sensitivity = 10. * self.position_sensitivity
+        assert max_target_distance is None or max_target_distance > 0.
+        assert max_target_distance > sensitivity
+
+        original_start = np.array(self.get_robot_state()[0])
+
+        success = self._execute_smooth_walk(goal_, max_target_distance, sensitivity)
+
+        if success:
+            goal_start_direction = goal_ - original_start
+            original_distance = np.linalg.norm(goal_start_direction)
+            success_sum = original_distance
+            collision_sum = 0.
+        else:
+            current_joints = np.array(self.get_robot_state()[0])
+            success_sum = np.linalg.norm(current_joints - original_start)
+            collision_sum = np.linalg.norm(current_joints - goal_)
+        return success_sum, collision_sum
+
+    def _execute_smooth_walk(self, goal, max_target_distance, sensitivity):
+        steps_counter = 0
+        current_joints = np.array(self.get_robot_state()[0])
+        while not (self.is_close(goal) and not self.is_moving()):
+            direction = goal - current_joints
+            distance = np.linalg.norm(direction)
+            direction = direction / distance
+            if max_target_distance is not None and distance > 2 * max_target_distance:
+                move_target = current_joints + max_target_distance * direction
+            elif distance >= 2 * sensitivity:
+                move_target = (current_joints + goal) * 0.5
+            elif distance >= sensitivity:
+                move_target = current_joints + sensitivity * direction
+            else:
+                move_target = goal
+            self.set_movement_target(move_target)
+            (current_joints, _), is_collision = self.simulation_step()
+            current_joints = np.array(current_joints)
+            if is_collision:
+                return False
+            if steps_counter == 5000:
+                return False
+            steps_counter += 1
+        return True
+
     def walk_between_waypoints(
             self, start, end, max_waypoint_sensetivity_intervals=20,
             teleport_between_waypoints=True, time_between_frames=0.0

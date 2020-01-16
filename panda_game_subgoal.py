@@ -190,13 +190,21 @@ class GameWorker(multiprocessing.Process):
         start_ = PandaGameSubgoal.virtual_to_real_state(truncated_start, self._panda_scene_manager)
         end_ = PandaGameSubgoal.virtual_to_real_state(truncated_end, self._panda_scene_manager)
 
-        is_start_valid, is_goal_valid, sum_free, sum_collision, _ = self._panda_scene_manager.walk_between_waypoints(
-            start_, end_)
+        self._panda_scene_manager.change_robot_joints(start_)
+        sum_free, sum_collision = self._panda_scene_manager.smooth_walk(end_, max_target_distance=1., sensitivity=0.01)
 
-        is_start_valid = is_start_valid and (truncated_distance_start == 0.0)
-        is_goal_valid = is_goal_valid and (truncated_distance_end == 0.0)
+        is_start_valid = truncated_distance_start == 0.0
+        is_goal_valid = truncated_distance_end == 0.0
 
         sum_collision += truncated_distance_start + truncated_distance_end
+
+        # is_start_valid, is_goal_valid, sum_free, sum_collision, _ = self._panda_scene_manager.walk_between_waypoints(
+        #     start_, end_)
+        #
+        # is_start_valid = is_start_valid and (truncated_distance_start == 0.0)
+        # is_goal_valid = is_goal_valid and (truncated_distance_end == 0.0)
+        #
+        # sum_collision += truncated_distance_start + truncated_distance_end
         return start, end, is_start_valid, is_goal_valid, sum_free, sum_collision
 
     def get_valid_start_goal(self, curriculum_coefficient):
