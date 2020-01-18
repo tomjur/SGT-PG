@@ -25,7 +25,6 @@ class TrainerSubgoal:
 
         self.batch_size = config['model']['batch_size']
         self.steps_per_trajectory_print = config['general']['cycles_per_trajectory_print']
-        self.train_levels = config['model']['train_levels']
         self.train_episodes_per_cycle = config['general']['train_episodes_per_cycle']
         self.gain = config['model']['gain']
 
@@ -62,35 +61,34 @@ class TrainerSubgoal:
         self.summaries_collector.write_train_success_summaries(
             self.sess, global_step, successes, accumulated_cost, self.curriculum_coefficient)
 
-        for level in self._get_relevant_levels(top_level):
-            valid_data = [
-                (s, g, m, c) for (s, g, m, s_valid, g_valid, c) in dataset[level] if s_valid and g_valid
-            ]
-            if len(valid_data) == 0:
-                continue
-            # compute the costs now
-            starts, ends, middles, costs = zip(*valid_data)
-            costs = self._process_costs(starts, ends, costs, level)
-            valid_data = list(zip(starts, ends, middles, costs))
+        valid_data = [
+            (s, g, m, c) for (s, g, m, s_valid, g_valid, c) in dataset[top_level] if s_valid and g_valid
+        ]
+        assert len(valid_data) == len(dataset[top_level])
 
-            # set the baseline to the current policy
-            self.network.update_baseline_policy(self.sess, level)
-            # do optimization steps
-            for update_step in range(self.config['model']['consecutive_optimization_steps']):
-                starts, ends, middles, costs = zip(*random.sample(valid_data, min(self.batch_size, len(valid_data))))
-                try:
-                    initial_gradient_norm, _, summaries, prediction_loss, _ = self.network.train_policy(
-                        level, starts, ends, middles, costs, self.sess
-                    )
-                    self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
-                    global_step += 1
-                except InvalidArgumentError as error:
-                    print('error encountered')
-                    break
+        # compute the costs now
+        starts, ends, middles, costs = zip(*valid_data)
+        costs = self._process_costs(starts, ends, costs)
+        valid_data = list(zip(starts, ends, middles, costs))
+
+        # set the baseline to the current policy
+        self.network.update_baseline_policy(self.sess, top_level)
+        # do optimization steps
+        for update_step in range(self.config['model']['consecutive_optimization_steps']):
+            starts, ends, middles, costs = zip(*random.sample(valid_data, min(self.batch_size, len(valid_data))))
+            try:
+                initial_gradient_norm, _, summaries, prediction_loss, _ = self.network.train_policy(
+                    top_level, starts, ends, middles, costs, self.sess
+                )
+                self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
+                global_step += 1
+            except InvalidArgumentError as error:
+                print('error encountered')
+                break
 
         return global_step, successes
 
-    def _process_costs(self, starts, ends, costs, level):
+    def _process_costs(self, starts, ends, costs):
         if self.config['model']['repeat_train_trajectories'] > 0:
             costs = self._reduce_mean_by_start_goal(starts, ends, costs)
         costs = np.expand_dims(np.array(costs), axis=-1)
@@ -151,14 +149,6 @@ class TrainerSubgoal:
         successes = np.mean(successes)
         accumulated_cost = np.mean(accumulated_cost)
         return successes, accumulated_cost, dataset, endpoints_by_path
-
-    def _get_relevant_levels(self, top_level):
-        if self.train_levels == 'all-below':
-            return range(1, top_level + 1)
-        elif self.train_levels == 'topmost':
-            return range(top_level, top_level + 1)
-        else:
-            assert False
 
     # def print_gradient(self, count, level, cycle):
     #     if not self.check_gradients:

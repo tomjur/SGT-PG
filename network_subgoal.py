@@ -56,10 +56,9 @@ class Network:
             current_state = [current_policy_distribution.sample()]
         if level == 1:
             return current_state
-        if not take_mean and self.config['model']['train_levels'] == 'topmost':
-            take_mean = True
-        prefix_states = self._get_policy_tree(start_inputs, current_state[0], level-1, take_mean)
-        suffix_states = self._get_policy_tree(current_state[0], goal_inputs, level-1, take_mean)
+        # when training a policy of level L, the prediction of levels 1... L-1 are not stochastic
+        prefix_states = self._get_policy_tree(start_inputs, current_state[0], level-1, True)
+        suffix_states = self._get_policy_tree(current_state[0], goal_inputs, level-1, True)
         return prefix_states + current_state + suffix_states
 
     def predict_policy(self, start_inputs, goal_inputs, level, sess, is_train):

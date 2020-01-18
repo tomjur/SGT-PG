@@ -33,8 +33,6 @@ cost:
 model:
   levels: 3
   starting_level: 1
-#  train_levels: 'all-below'
-  train_levels: 'topmost'
   init_from_lower_level: True
 #  init_from_lower_level: False
   batch_size: 20000

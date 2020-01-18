@@ -153,14 +153,7 @@ def run_for_config(config):
                             if config['model']['restore_on_decrease']:
                                 restore_best(sess, best_saver, best_curriculum_coefficient, trainer)
                             # decrease learn rates
-                            if config['model']['train_levels'] == 'all-below':
-                                levels_to_decrease_learn_rate = range(1, current_level + 1)
-                            elif config['model']['train_levels'] == 'topmost':
-                                levels_to_decrease_learn_rate = range(current_level, current_level + 1)
-                            else:
-                                assert False
-                            for l in levels_to_decrease_learn_rate:
-                                network.decrease_learn_rates(sess, l)
+                            network.decrease_learn_rates(sess, current_level)
                             no_test_improvement = 0
                             consecutive_learn_rate_decrease += 1
                             print_and_log('decreasing learn rates {} of {}'.format(

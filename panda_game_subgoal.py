@@ -197,14 +197,6 @@ class GameWorker(multiprocessing.Process):
         is_goal_valid = truncated_distance_end == 0.0
 
         sum_collision += truncated_distance_start + truncated_distance_end
-
-        # is_start_valid, is_goal_valid, sum_free, sum_collision, _ = self._panda_scene_manager.walk_between_waypoints(
-        #     start_, end_)
-        #
-        # is_start_valid = is_start_valid and (truncated_distance_start == 0.0)
-        # is_goal_valid = is_goal_valid and (truncated_distance_end == 0.0)
-        #
-        # sum_collision += truncated_distance_start + truncated_distance_end
         return start, end, is_start_valid, is_goal_valid, sum_free, sum_collision
 
     def get_valid_start_goal(self, curriculum_coefficient):
