@@ -280,8 +280,19 @@ class GameWorker(multiprocessing.Process):
         new_virtual_action = np.maximum(new_virtual_action, -1.)
         new_virtual_action = np.minimum(new_virtual_action, 1.)
         movement_target = self._virtual_to_real_state(new_virtual_action)
-        self._panda_scene_manager.set_movement_target(movement_target)
-        return self._panda_scene_manager.simulation_step()
+        if self.config['panda_game']['move'] == 'single-action':
+            # only take a single action towards the goal
+            self._panda_scene_manager.set_movement_target(movement_target)
+            return self._panda_scene_manager.simulation_step()
+        elif self.config['panda_game']['move'] == 'multi-action-smooth':
+            # execute the smooth motion controller
+            self._panda_scene_manager.smooth_walk(movement_target, max_target_distance=1., sensitivity=0.01)
+            is_collision = self._panda_scene_manager.is_collision()
+            robot_state = self._panda_scene_manager.get_robot_state()
+            return robot_state, is_collision
+        else:
+            # move option undefined
+            assert False
 
     def get_valid_start_goal(self, curriculum_coefficient):
         while True:

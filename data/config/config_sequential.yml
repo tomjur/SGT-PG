@@ -30,7 +30,8 @@ panda_game:
   goal_closeness_distance: 0.01
 #  limit_action_distance:
   limit_action_distance: 0.1
-
+#  move: 'single-action'
+  move: 'multi-action-smooth'
 
 cost:
   collision_cost: 100.0
@@ -47,7 +48,8 @@ cost:
 
 model:
   gamma: 1.
-  max_steps: 1000
+#  max_steps: 1000
+  max_steps: 16
   batch_size: 20000
   reset_best_every: 0
 #  reset_best_every: 50
