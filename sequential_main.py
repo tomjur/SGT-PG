@@ -28,12 +28,7 @@ def _get_game(config):
         limit_workers = config['panda_game']['limit_workers']
         if limit_workers is not None:
             max_cores = min(limit_workers, max_cores)
-        return PandaGameSequential(
-            scenario, config['cost']['goal_reward'], config['cost']['collision_cost'], config['cost']['free_cost'],
-            max_cores=max_cores, max_steps=config['model']['max_steps'],
-            goal_closeness_distance=config['panda_game']['goal_closeness_distance'],
-            limit_action_distance=config['panda_game']['limit_action_distance']
-        )
+        return PandaGameSequential(config, max_cores)
     else:
         assert False
 
@@ -68,7 +63,7 @@ def run_for_config(config):
     # generate game
     game = _get_game(config)
 
-    network = NetworkSequential(config, game)
+    network = NetworkSequential(config, game.get_state_space_size(), game.get_action_space_size(), is_rollout_agent=False)
     network_variables = network.get_all_variables()
 
     # save model
@@ -77,17 +72,12 @@ def run_for_config(config):
 
     summaries_collector = SummariesCollector(os.path.join(working_dir, 'tensorboard', model_name), model_name)
 
-    with tf.compat.v1.Session(
-            config=tf.compat.v1.ConfigProto(
-                gpu_options=tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=config['general']['gpu_usage'])
-            )
-    ) as sess:
+    with tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(
+            gpu_options=tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=config['general']['gpu_usage'])
+    )) as sess:
         sess.run(tf.compat.v1.global_variables_initializer())
 
-        policy_function = lambda current_states, goals, is_train: network.predict_policy(
-            current_states, goals, sess, is_train)
-        episode_runner = EpisodeRunnerSequential(
-            config, game, policy_function, curriculum_coefficient=get_initial_curriculum(config))
+        episode_runner = EpisodeRunnerSequential(config, game, curriculum_coefficient=get_initial_curriculum(config))
 
         trainer = TrainerSequential(model_name, config, working_dir, network, sess, episode_runner, summaries_collector)
 

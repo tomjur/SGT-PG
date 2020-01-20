@@ -7,10 +7,10 @@ from network_utils import optimize_by_loss, get_activation
 
 
 class NetworkSequential:
-    def __init__(self, config, game):
+    def __init__(self, config, state_size, action_size, is_rollout_agent=False):
         self.config = config
-        self.state_size = game.get_state_space_size()
-        self.action_size = game.get_action_space_size()
+        self.state_size = state_size
+        self.action_size = action_size
 
         self.current_inputs = tf.compat.v1.placeholder(tf.float32, (None, self.state_size), name='current_inputs')
         self.goal_inputs = tf.compat.v1.placeholder(tf.float32, (None, self.state_size), name='goal_inputs')
@@ -20,16 +20,20 @@ class NetworkSequential:
         # network is comprised of policy and value nets
         self.policy_network = PolicyNetwork(
             config, self.state_size, self.action_size, self.current_inputs, self.goal_inputs, self.action_inputs,
-            self.label_inputs
+            self.label_inputs, is_rollout_agent
         )
-
-        self.value_network = ValueNetwork(
-            config, self.state_size, self.current_inputs, self.goal_inputs, self.label_inputs,
-        )
-
+        # policy predictions
         policy_distribution = self.policy_network.prediction_distribution
         self.train_prediction = policy_distribution.sample()
         self.test_prediction = policy_distribution.mean()
+
+        # initialize value networks if required
+        if is_rollout_agent:
+            self.value_network = None
+        else:
+            self.value_network = ValueNetwork(
+                config, self.state_size, self.current_inputs, self.goal_inputs, self.label_inputs,
+            )
 
     def predict_policy(self, current_inputs, goal_inputs, sess, is_train):
         op = self.train_prediction if is_train else self.train_prediction
@@ -86,6 +90,18 @@ class NetworkSequential:
     def get_all_variables(self):
         return self.policy_network.model_variables + self.value_network.model_variables
 
+    def get_policy_weights(self, sess):
+        return sess.run([self.policy_network.model_variables, self.policy_network.base_std_variable])
+
+    def set_policy_weights(self, sess, variables):
+        weights, std = variables
+        feed = {
+            self.policy_network.weights_placeholders[var.name]: weights[i]
+            for i, var in enumerate(self.policy_network.model_variables)
+        }
+        feed[self.policy_network.std_placeholder] = std
+        sess.run([self.policy_network.weights_assign_ops, self.policy_network.std_assign_op], feed)
+
     def _generate_feed_dictionary(self, current_inputs, goal_inputs, action_inputs=None, labels=None):
         current_inputs_ = np.array(current_inputs)
         goal_inputs_ = np.array(goal_inputs)
@@ -117,7 +133,8 @@ class NetworkSequential:
 
 
 class PolicyNetwork:
-    def __init__(self, config, state_size, action_size, current_state_inputs, goal_inputs, action_inputs, label_inputs):
+    def __init__(self, config, state_size, action_size, current_state_inputs, goal_inputs, action_inputs, label_inputs,
+                 is_rollout_agent):
         self.config = config
         self.name_prefix = 'sequential_policy'
         self.state_size = state_size
@@ -144,6 +161,20 @@ class PolicyNetwork:
         # get the prediction distribution
         self.prediction_distribution, self.model_variables = self._create_network(
             self.current_state_inputs, self.goal_inputs)
+
+        # create placeholders and assign ops to set these weights manually (used by rollout agents)
+        self.weights_placeholders = {
+            var.name: tf.placeholder(tf.float32, var.get_shape()) for var in self.model_variables
+        }
+        self.weights_assign_ops = [
+            tf.assign(var, self.weights_placeholders[var.name])
+            for var in self.model_variables
+        ]
+        self.std_placeholder = tf.placeholder(tf.float32,)
+        self.std_assign_op = tf.assign(self.base_std_variable, self.std_placeholder)
+
+        if is_rollout_agent:
+            return
 
         # get the baseline prediction distribution (remains fixed during optimization)
         self.baseline_prediction_distribution, self.baseline_model_variables = self._create_network(

@@ -20,6 +20,10 @@ class TrainerSequential:
         self.gamma = config['model']['gamma']
 
     def train_policy(self, global_step):
+        # set the new weights in the workers
+        self.episode_runner.game.update_weights(self.network.get_policy_weights(self.sess))
+
+        # collect new data
         successes, accumulated_cost, dataset, _ = self.collect_data(
             self.train_episodes_per_cycle, is_train=True, use_fixed_start_goal_pairs=False)
         self.summaries_collector.write_train_success_summaries(

@@ -11,7 +11,8 @@ general:
   scenario: panda_no_obs
 #  scenario: panda_easy
 #  scenario: panda_hard
-  gpu_usage: 0.2
+  gpu_usage: 0.1
+  actor_gpu_usage: 0.05
   training_cycles: 30000
 #  train_episodes_per_cycle: 5000
   train_episodes_per_cycle: 50
@@ -23,8 +24,9 @@ general:
   test_frequency: 3
 
 panda_game:
-  #  limit_workers: 30
-  limit_workers: 1
+  limit_workers:
+#  limit_workers: 30
+#  limit_workers: 1
   goal_closeness_distance: 0.01
 #  limit_action_distance:
   limit_action_distance: 0.1
