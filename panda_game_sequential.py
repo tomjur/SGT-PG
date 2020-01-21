@@ -212,7 +212,6 @@ class GameWorker(multiprocessing.Process):
 
         goals = [goal]
         goal_joints = goal[:self._panda_scene_manager.number_of_joints]
-        goal_velocity = goal[self._panda_scene_manager.number_of_joints:]
 
         should_stop = False
         while not should_stop:
