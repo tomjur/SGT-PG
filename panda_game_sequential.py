@@ -40,7 +40,7 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
             w.start()
 
     def get_state_space_size(self):
-        return 2*9
+        return 9
 
     def get_action_space_size(self):
         return 9
@@ -69,9 +69,6 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
             index = len(result)
             start = np.array([float(f) for f in lines[2 * index].split(', ')])
             goal = np.array([float(f) for f in lines[2 * index + 1].split(', ')])
-            # add velocity zero.
-            start = np.concatenate((start, np.array([0.] * len(start))), axis=0)
-            goal = np.concatenate((goal, np.array([0.] * len(goal))), axis=0)
             # append to results
             result.append((start, goal))
         return result
@@ -165,7 +162,7 @@ class GameWorker(multiprocessing.Process):
                     per_process_gpu_memory_fraction=self.config['general']['actor_gpu_usage'])
         )) as sess:
 
-            self._network = NetworkSequential(self.config, number_of_joints * 2, number_of_joints, is_rollout_agent=False)
+            self._network = NetworkSequential(self.config, number_of_joints, number_of_joints, is_rollout_agent=False)
 
             short_sleep = 0.001
             long_sleep = 1.
@@ -224,24 +221,17 @@ class GameWorker(multiprocessing.Process):
             # add as-is to the list of actions
             actions.append(action)
             # execute, get and save the new state
-            (joints, velocity), is_collision = self._apply_action(action)
+            joints, is_collision = self._apply_action(action)
             joints = self._real_to_virtual_state(joints)
-            new_state = np.concatenate((joints, velocity), axis=0)
+            new_state = np.array(joints)
             states.append(new_state)
             # compute the costs
             close_to_goal = self._are_close(joints, goal_joints, self.closeness)
             if is_collision:
                 cost = self.collision_cost
             elif close_to_goal:
-                velocity_norm = np.linalg.norm(velocity)
-                # velocity_cost = self.goal_reached_reward * (1. - np.exp(-velocity_norm))
-                # closeness_cost = -self.goal_reached_reward
-                # cost = velocity_cost + closeness_cost
-                cost = self.goal_reached_reward * (-np.exp(-velocity_norm))
-                if self._are_close(velocity, goal_velocity, self.closeness):
-                    is_successful = True
-                else:
-                    is_successful = False
+                cost = -self.goal_reached_reward
+                is_successful = True
             else:
                 cost = self.keep_alive_cost
             costs.append(cost)
@@ -283,21 +273,30 @@ class GameWorker(multiprocessing.Process):
         if self.config['panda_game']['move'] == 'single-action':
             # only take a single action towards the goal
             self._panda_scene_manager.set_movement_target(movement_target)
-            return self._panda_scene_manager.simulation_step()
+            self._panda_scene_manager.simulation_step()
         elif self.config['panda_game']['move'] == 'multi-action-smooth':
             # execute the smooth motion controller
             self._panda_scene_manager.smooth_walk(movement_target, max_target_distance=1., sensitivity=0.01)
-            is_collision = self._panda_scene_manager.is_collision()
-            robot_state = self._panda_scene_manager.get_robot_state()
-            return robot_state, is_collision
+
         else:
             # move option undefined
             assert False
+        is_collision = self._panda_scene_manager.is_collision()
+        joints, _ = self._panda_scene_manager.get_robot_state()
+        if not is_collision:
+            # set velocity in simulation to zero
+            self._panda_scene_manager.change_robot_joints(joints)
+            new_joints = self._panda_scene_manager.get_robot_state()[0]
+            assert self._are_close(joints, new_joints, self.closeness)
+            assert not self._panda_scene_manager.is_collision()
+            joints = new_joints
+        return joints, is_collision
 
     def get_valid_start_goal(self, curriculum_coefficient):
         while True:
             state_size = self._panda_scene_manager.number_of_joints
-            virtual_state1 = [self._random.uniform(-1., 1.) for _ in range(state_size)]
+            # virtual_state1 = [self._random.uniform(-1., 1.) for _ in range(state_size)]
+            virtual_state1 = [0.0 for _ in range(state_size)]
             if not self._is_free_state(virtual_state1):
                 continue
             virtual_state2 = [self._random.uniform(-1., 1.) for _ in range(state_size)]
@@ -317,8 +316,6 @@ class GameWorker(multiprocessing.Process):
             if not self._is_free_state(virtual_state2):
                 continue
 
-            virtual_state1 = np.concatenate((np.array(virtual_state1), np.array([0.] * state_size)), axis=0)
-            virtual_state2 = np.concatenate((np.array(virtual_state2), np.array([0.] * state_size)), axis=0)
             return np.array(virtual_state1), np.array(virtual_state2)
 
     @staticmethod
