@@ -134,7 +134,6 @@ class GameWorker(multiprocessing.Process):
         multiprocessing.Process.__init__(self)
         self.config = config
 
-        self.max_steps = config['model']['max_steps']
         self.goal_reached_reward = config['cost']['goal_reward']
         self.collision_cost = config['cost']['collision_cost']
         self.keep_alive_cost = config['cost']['free_cost']
@@ -214,6 +213,7 @@ class GameWorker(multiprocessing.Process):
         goal_joints = goal[:self._panda_scene_manager.number_of_joints]
 
         should_stop = False
+        distance_covered = 0.0
         while not should_stop:
             # predict action
             action = self._network.predict_policy([states[-1]], goals, sess, is_train)[0]
@@ -223,6 +223,7 @@ class GameWorker(multiprocessing.Process):
             joints, is_collision = self._apply_action(action)
             joints = self._real_to_virtual_state(joints)
             new_state = np.array(joints)
+            distance_covered += np.linalg.norm(new_state - states[-1])
             states.append(new_state)
             # compute the costs
             close_to_goal = self._are_close(joints, goal_joints, self.closeness)
@@ -234,11 +235,12 @@ class GameWorker(multiprocessing.Process):
             else:
                 cost = self.keep_alive_cost
             costs.append(cost)
-            max_steps_reached = False
-            if self.max_steps is not None:
-                max_steps_reached = len(states) == self.max_steps + 1
+            max_distance_covered = False
+            # the largest start to goal distance is 2*sqrt(number of joints), we limit the movement to be 10 times that.
+            if distance_covered > 2 * np. sqrt(self._panda_scene_manager.number_of_joints) * 10:
+                max_distance_covered = True
             # check if episode terminated
-            should_stop = is_collision or close_to_goal or max_steps_reached
+            should_stop = is_collision or close_to_goal or max_distance_covered
 
         return states, actions, costs, is_successful
 
