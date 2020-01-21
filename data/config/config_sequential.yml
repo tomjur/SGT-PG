@@ -27,7 +27,7 @@ panda_game:
   limit_workers:
 #  limit_workers: 30
 #  limit_workers: 1
-  goal_closeness_distance: 0.01
+  goal_closeness_distance: 0.1
 #  limit_action_distance:
   limit_action_distance: 0.1
   move: 'single-action'
@@ -48,8 +48,6 @@ cost:
 
 model:
   gamma: 1.
-#  max_steps: 1000
-  max_steps: 16
   batch_size: 20000
   reset_best_every: 0
 #  reset_best_every: 50
