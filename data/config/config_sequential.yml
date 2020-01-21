@@ -30,8 +30,8 @@ panda_game:
   goal_closeness_distance: 0.01
 #  limit_action_distance:
   limit_action_distance: 0.1
-#  move: 'single-action'
-  move: 'multi-action-smooth'
+  move: 'single-action'
+#  move: 'multi-action-smooth'
 
 cost:
   collision_cost: 100.0
@@ -108,8 +108,8 @@ value_estimator:
 #  activation: 'tanh'
 
 curriculum:
-#  use: True
-  use: False
+  use: True
+#  use: False
   times_goal_start_coefficient: 1.5
   raise_times: 1.1
   raise_when_train_above: 0.05
