@@ -83,6 +83,8 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
         for i in range(len(start_goal_pairs)):
             path_id, states, actions, costs, goal, is_successful = self.results_queue.get(block=True)
             result[path_id] = (states, goal, actions, costs, is_successful)
+            if i % 10 == 9:
+                print('finished {} episodes...'.format(i+1))
         return result
 
     def get_free_start_goals(self, number_of_episodes, curriculum_coefficient):
@@ -214,6 +216,7 @@ class GameWorker(multiprocessing.Process):
 
         should_stop = False
         distance_covered = 0.0
+        counter = 0
         while not should_stop:
             # predict action
             action = self._network.predict_policy([states[-1]], goals, sess, is_train)[0]
@@ -223,7 +226,8 @@ class GameWorker(multiprocessing.Process):
             joints, is_collision = self._apply_action(action)
             joints = self._real_to_virtual_state(joints)
             new_state = np.array(joints)
-            distance_covered += np.linalg.norm(new_state - states[-1])
+            new_distance = np.linalg.norm(new_state - states[-1])
+            distance_covered += new_distance
             states.append(new_state)
             # compute the costs
             close_to_goal = self._are_close(joints, goal_joints, self.closeness)
@@ -235,12 +239,19 @@ class GameWorker(multiprocessing.Process):
             else:
                 cost = self.keep_alive_cost
             costs.append(cost)
-            max_distance_covered = False
-            # the largest start to goal distance is 2*sqrt(number of joints), we limit the movement to be 10 times that.
-            if distance_covered > 2 * np. sqrt(self._panda_scene_manager.number_of_joints) * 10:
-                max_distance_covered = True
             # check if episode terminated
-            should_stop = is_collision or close_to_goal or max_distance_covered
+            should_stop = is_collision or close_to_goal
+            if not should_stop:
+                if distance_covered > 2 * np. sqrt(self._panda_scene_manager.number_of_joints) * 10:
+                    # the largest start to goal distance is 2*sqrt(number of joints), we limit the movement to be 10
+                    # times that.
+                    should_stop = True
+                elif new_distance < self.closeness / 10.:
+                    # if we start moving to slowly also stop
+                    should_stop = True
+                elif counter >= 10000:
+                    should_stop = True
+            counter += 1
 
         return states, actions, costs, is_successful
 
