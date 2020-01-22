@@ -48,14 +48,14 @@ cost:
 
 model:
   gamma: 1.
-  batch_size: 20000
+  batch_size: 32
   reset_best_every: 0
 #  reset_best_every: 50
   decrease_learn_rate_if_static_success: 200
   restore_on_decrease: True
 #  restore_on_decrease: False
   stop_training_after_learn_rate_decrease: 3
-  consecutive_optimization_steps: 1
+  epochs: 1
 
 policy:
   learning_rate: 0.001
