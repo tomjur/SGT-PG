@@ -286,8 +286,24 @@ class PolicyNetwork:
         activation = get_activation(self.config['policy']['activation'])
         network_layers = self.config['policy']['layers']
         learn_std = self.config['policy']['learn_std']
+        distance_adaptive_std = self.config['policy']['distance_adaptive_std']
 
-        base_std = self.base_std_variable
+        base_std = tf.squeeze(tf.tile(tf.reshape(self.base_std_variable, (1, 1)), (self.state_size, 1)), axis=-1)
+        if distance_adaptive_std:
+            # if the std is distance adaptive, the base std if of the form:
+            # (base_std_from_config + softplus(learnable_parameters)) * dist(start, goal)
+            learnable_distance_coeff = tf.layers.dense(
+                tf.ones((1, 1)), self.state_size, activation=tf.nn.softplus, name='{}_std_coeff'.format(name_prefix),
+                reuse=reuse, use_bias=False
+            )
+
+            # with tf.variable_scope("std_scope", reuse=reuse):
+            #     learnable_distance_coeff = tf.nn.softplus(
+            #         tf.Variable([0.0]*self.state_size, trainable=True, shape=self.state_size)
+            #     )
+            base_std = base_std + learnable_distance_coeff
+            distance = tf.linalg.norm(start_inputs - goal_inputs, axis=1)
+            base_std = tf.expand_dims(distance, axis=1) * base_std
         current_input = tf.concat((start_inputs, goal_inputs), axis=1)
         shift = (start_inputs + goal_inputs) * 0.5
         if self.config['policy']['include_middle_state_as_input']:
@@ -315,7 +331,7 @@ class PolicyNetwork:
                 name='{}_normal_dist_parameters'.format(name_prefix), reuse=reuse,
             )
             bias = normal_dist_parameters
-            std = [base_std] * self.state_size
+            std = base_std
 
         if self.config['policy']['bias_activation_is_tanh']:
             bias = tf.tanh(bias)
