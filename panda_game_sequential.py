@@ -14,7 +14,7 @@ from path_helper import get_start_goal_from_scenario
 
 
 class PandaGameSequential(AbstractMotionPlanningGameSequential):
-    def __init__(self, config, max_cores=None, max_queries_buffer_size=1000000, queries_update_freq=2):
+    def __init__(self, config, max_cores=None):
         self.scenario = config['general']['scenario']
 
         self.requests_queue = multiprocessing.Queue()
@@ -31,10 +31,6 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
             for i in range(self._number_of_workers)
         ]
 
-        self._max_queries_buffer_size = max_queries_buffer_size
-        self._queries_update_freq = queries_update_freq
-        self._queries_buffer = []
-        self._queries_update_counter = 0
 
         for w in self.workers:
             w.start()
@@ -88,25 +84,12 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
         return result
 
     def get_free_start_goals(self, number_of_episodes, curriculum_coefficient):
-        # how many episodes to collect?
-        if len(self._queries_buffer) < number_of_episodes:
-            # initial steps - collect enough to sample randomly for a couple of cycles
-            queries_to_generate = max(number_of_episodes * self._queries_update_freq, self._number_of_workers)
-        else:
-            if self._queries_update_counter == self._queries_update_freq:
-                queries_to_generate = self._number_of_workers
-                self._queries_update_counter = 0
-            else:
-                queries_to_generate = 0
-                self._queries_update_counter += 1
         # collect
-        print('generating {} new queries'.format(queries_to_generate))
-        new_queries = self._get_free_start_goals_from_game(queries_to_generate, curriculum_coefficient)
-        # shuffle and remove extra
-        random.shuffle(self._queries_buffer)
-        self._queries_buffer = self._queries_buffer[:self._max_queries_buffer_size - len(new_queries)]
-        self._queries_buffer.extend(new_queries)
-        return self._queries_buffer[:number_of_episodes]
+        print('generating {} new queries'.format(number_of_episodes))
+        new_queries = self._get_free_start_goals_from_game(number_of_episodes, curriculum_coefficient)
+        distances = np.mean([np.linalg.norm(g-s) for s, g in new_queries])
+        print('done generating queries, start->goal mean distance is {}'.format(distances))
+        return new_queries
 
     def _get_free_start_goals_from_game(self, number_of_episodes, curriculum_coefficient):
         # put all requests
@@ -323,7 +306,7 @@ class GameWorker(multiprocessing.Process):
                 direction = virtual_state2.copy()
                 direction = direction / np.linalg.norm(direction)
                 direction *= self.closeness
-                size = np.random.uniform(1., curriculum_coefficient)
+                size = self._random.uniform(1., curriculum_coefficient)
                 direction *= size
                 virtual_state2 = virtual_state1 + direction
 
