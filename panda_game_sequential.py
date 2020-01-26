@@ -303,6 +303,7 @@ class GameWorker(multiprocessing.Process):
                     continue
             else:
                 # use curriculum
+                curriculum_coefficient = min(curriculum_coefficient, 6. / self.closeness)
                 direction = virtual_state2.copy()
                 direction = direction / np.linalg.norm(direction)
                 direction *= self.closeness
