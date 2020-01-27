@@ -55,6 +55,8 @@ model:
   restore_on_decrease: True
 #  restore_on_decrease: False
   stop_training_after_learn_rate_decrease: 3
+  repeat_train_trajectories:
+#  repeat_train_trajectories: 2
   epochs: 1
 
 policy:
