@@ -32,6 +32,7 @@ panda_game:
   limit_action_distance: 0.1
   move: 'single-action'
 #  move: 'multi-action-smooth'
+  max_steps: 1000
 
 cost:
   collision_cost: 100.0

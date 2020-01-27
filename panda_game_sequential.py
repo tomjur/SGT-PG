@@ -124,6 +124,7 @@ class GameWorker(multiprocessing.Process):
         self.keep_alive_cost = config['cost']['free_cost']
         self.closeness = config['panda_game']['goal_closeness_distance']
         self.limit_action_distance = config['panda_game']['limit_action_distance']
+        self.max_steps = config['panda_game']['max_steps']
 
         self.requests_queue = requests_queue
         self.worker_specific_request_queue = worker_specific_request_queue
@@ -221,7 +222,7 @@ class GameWorker(multiprocessing.Process):
             # if the agent did not move (stuck in place)
             stationary_agent = new_distance < self.closeness / 10.
             # max steps reached
-            max_counter = counter >= 1000
+            max_counter = counter >= self.max_steps
 
             if is_collision:
                 cost = self.collision_cost
