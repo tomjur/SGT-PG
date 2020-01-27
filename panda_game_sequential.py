@@ -293,8 +293,10 @@ class GameWorker(multiprocessing.Process):
     def get_valid_start_goal(self, curriculum_coefficient):
         while True:
             state_size = self._panda_scene_manager.number_of_joints
-            # virtual_state1 = [self._random.uniform(-1., 1.) for _ in range(state_size)]
-            virtual_state1 = [0.0 for _ in range(state_size)]
+            if '_fixed_start' in self.config['general']['scenario']:
+                virtual_state1 = [0.0 for _ in range(state_size)]
+            else:
+                virtual_state1 = [self._random.uniform(-1., 1.) for _ in range(state_size)]
             if not self._is_free_state(virtual_state1):
                 continue
             virtual_state2 = [self._random.uniform(-1., 1.) for _ in range(state_size)]
