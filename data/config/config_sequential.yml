@@ -86,6 +86,8 @@ policy:
   max_entropy_coefficient: 1.
 #  bias_activation_is_tanh: True
   bias_activation_is_tanh: False
+#  bias_towards_goal:
+  bias_towards_goal: 0.01
   ppo_epsilon: 0.1
 
 value_estimator:

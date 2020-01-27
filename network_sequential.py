@@ -304,6 +304,10 @@ class PolicyNetwork:
         if self.config['policy']['bias_activation_is_tanh']:
             bias = tf.tanh(bias)
 
+        bias_towards_goal = self.config['policy']['bias_towards_goal']
+        if bias_towards_goal is not None:
+            bias = bias + current_state_inputs * (1. - bias_towards_goal) + goal_inputs * bias_towards_goal
+
         distribution = tfp.distributions.MultivariateNormalDiag(loc=bias, scale_diag=std)
         model_variables = tf.compat.v1.trainable_variables()[variable_count:]
         if reuse:
