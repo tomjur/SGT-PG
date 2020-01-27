@@ -208,6 +208,7 @@ class GameWorker(multiprocessing.Process):
             virtual_state2 = [self._random.uniform(-1., 1.) for _ in range(state_size)]
             if curriculum_coefficient is not None:
                 # use curriculum
+                curriculum_coefficient = min(curriculum_coefficient, 6.)
                 direction = virtual_state2.copy()
                 direction = direction / np.linalg.norm(direction)
                 original_size = np.linalg.norm(np.array(virtual_state1) - np.array(virtual_state2))
