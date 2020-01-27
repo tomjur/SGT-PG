@@ -211,7 +211,7 @@ class GameWorker(multiprocessing.Process):
                 direction = virtual_state2.copy()
                 direction = direction / np.linalg.norm(direction)
                 original_size = np.linalg.norm(np.array(virtual_state1) - np.array(virtual_state2))
-                size = np.random.uniform(0., min(curriculum_coefficient, original_size))
+                size = self._random.uniform(0., min(curriculum_coefficient, original_size))
                 direction *= size
                 virtual_state2 = virtual_state1 + direction
             if PandaGameSubgoal.is_free_state_in_manager(virtual_state2, self._panda_scene_manager):
