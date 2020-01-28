@@ -63,8 +63,11 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
         result = []
         while len(result) * 2 < len(lines):
             index = len(result)
-            start = np.array([float(f) for f in lines[2 * index].split(', ')])
             goal = np.array([float(f) for f in lines[2 * index + 1].split(', ')])
+            if '_fixed_start' in self.scenario:
+                start = np.array([0.0 for _ in range(len(goal))])
+            else:
+                start = np.array([float(f) for f in lines[2 * index].split(', ')])
             # append to results
             result.append((start, goal))
         return result
