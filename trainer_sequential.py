@@ -19,6 +19,8 @@ class TrainerSequential:
         self.train_episodes_per_cycle = config['general']['train_episodes_per_cycle']
         self.gamma = config['model']['gamma']
 
+        self.train_episodes_counter = 0
+
     def train_policy(self, global_step):
         # set the new weights in the workers
         self.episode_runner.game.update_weights(self.network.get_policy_weights(self.sess))
@@ -59,6 +61,8 @@ class TrainerSequential:
         successes, accumulated_cost, dataset, endpoints_by_path = self._process_episode_results(episode_results)
         print_and_log(
             'data collection done, success rate is {}, accumulated cost is {}'.format(successes, accumulated_cost))
+        if is_train:
+            self.train_episodes_counter += len(endpoints_by_path)
         return successes, accumulated_cost, dataset, endpoints_by_path
 
     def _process_episode_results(self, episode_results):

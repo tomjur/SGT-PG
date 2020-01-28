@@ -31,9 +31,6 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
             for i in range(self._number_of_workers)
         ]
 
-        self.train_episodes_counter = 0
-
-
         for w in self.workers:
             w.start()
 
@@ -86,8 +83,6 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
             result[path_id] = (states, goal, actions, costs, is_successful)
             if i % 10 == 9:
                 print('finished {} episodes...'.format(i+1))
-
-        self.train_episodes_counter += len(start_goal_pairs)
         return result
 
     def get_free_start_goals(self, number_of_episodes, curriculum_coefficient):
