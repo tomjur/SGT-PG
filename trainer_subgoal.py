@@ -28,6 +28,8 @@ class TrainerSubgoal:
         self.train_episodes_per_cycle = config['general']['train_episodes_per_cycle']
         self.gain = config['model']['gain']
 
+        self.train_episodes_counter = 0
+
         self.check_gradients = config['gradient_checker']['enable']
         if self.check_gradients:
             self.gradient_output_dir = os.path.join(working_dir, 'gradient', model_name)
@@ -57,7 +59,9 @@ class TrainerSubgoal:
         return new_costs
 
     def train_policy_at_level(self, top_level, global_step):
-        successes, accumulated_cost, dataset, _ = self.collect_train_data(self.train_episodes_per_cycle, top_level)
+        successes, accumulated_cost, dataset, endpoints_by_path = self.collect_train_data(
+            self.train_episodes_per_cycle, top_level)
+        self.train_episodes_counter += len(endpoints_by_path)
         self.summaries_collector.write_train_success_summaries(
             self.sess, global_step, successes, accumulated_cost, self.curriculum_coefficient)
 

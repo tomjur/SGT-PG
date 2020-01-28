@@ -53,6 +53,7 @@ def run_for_config(config):
     init_dir(saver_dir)
     init_log(log_file_path=os.path.join(saver_dir, 'log.txt'))
     copy_config(config, os.path.join(saver_dir, 'config.yml'))
+    episodic_success_rates_path = os.path.join(saver_dir, 'results.txt')
     test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name)
     init_dir(test_trajectories_dir)
 
@@ -126,6 +127,9 @@ def run_for_config(config):
                     test_successes, test_cost, _, endpoints_by_path = trainer.collect_test_data(current_level, False)
                     summaries_collector.write_test_success_summaries(
                         sess, global_step, test_successes, test_cost, trainer.curriculum_coefficient)
+                    with open(episodic_success_rates_path, 'a') as f:
+                        f.write('{} {} {} {} {}'.format(
+                            current_level, trainer.train_episodes_counter, test_successes, test_cost, os.linesep))
 
                     # decide how to act next
                     print_and_log('old cost was {} at step {}'.format(best_cost, best_cost_global_step))
