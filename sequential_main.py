@@ -55,6 +55,7 @@ def run_for_config(config):
     init_dir(saver_dir)
     init_log(log_file_path=os.path.join(saver_dir, 'log.txt'))
     copy_config(config, os.path.join(saver_dir, 'config.yml'))
+    episodic_success_rates_path = os.path.join(saver_dir, 'results.txt')
     weights_log_dir = os.path.join(saver_dir, 'weights_logs')
     init_dir(weights_log_dir)
     test_trajectories_dir = os.path.join(working_dir, 'test_trajectories', model_name)
@@ -111,6 +112,8 @@ def run_for_config(config):
                 summaries_collector.write_test_success_summaries(
                     sess, global_step, test_successes, test_cost, episode_runner.curriculum_coefficient
                 )
+                with open(episodic_success_rates_path, 'a') as f:
+                    f.write('{} {} {} {}'.format(game.train_episodes_counter, test_successes, test_cost, os.linesep))
 
                 # decide how to act next
                 print_and_log('old cost was {} at step {}'.format(best_cost, best_cost_global_step))
