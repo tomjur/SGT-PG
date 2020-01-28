@@ -8,12 +8,11 @@ general:
 #  scenario: 'point_robot_box_1.6'
 #  scenario: 'point_robot_corridor'
 #  scenario: 'point_robot_hard_corridors'
-  scenario: panda_no_obs
+#  scenario: panda_no_obs
 #  scenario: panda_easy
 #  scenario: panda_hard
-#  scenario: panda_no_obs_fixed_start
-  #  scenario: panda_easy_fixed_start
-  #  scenario: panda_hard_fixed_start
+  scenario: panda_no_obs_fixed_start
+#  scenario: panda_easy_fixed_start
   gpu_usage: 0.1
   actor_gpu_usage: 0.05
   training_cycles: 30000
