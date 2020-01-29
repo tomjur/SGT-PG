@@ -92,7 +92,7 @@ class TrainerSubgoalSequential:
             successes.append(is_valid_episode)
 
             # total cost:
-            total_cost = future_costs[-1][-1]
+            total_cost = future_costs[0][-1]
             accumulated_cost.append(total_cost)
 
         successes = np.mean(successes)

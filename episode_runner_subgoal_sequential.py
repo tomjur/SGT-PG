@@ -70,7 +70,9 @@ class EpisodeRunnerSubgoalSequential:
         # sum the future costs in every tuple
         for i in range(len(future_costs)-1):
             future_sum = future_costs[len(future_costs) - 1 - i][-1]
-            future_costs[len(future_costs) - 2 - i][-1] += future_sum
+            new_tuple = list(future_costs[len(future_costs) - 2 - i])
+            new_tuple[-1] += future_sum
+            future_costs[len(future_costs) - 2 - i] = tuple(new_tuple)
 
         return endpoints, base_costs, future_costs, is_valid_episode
 

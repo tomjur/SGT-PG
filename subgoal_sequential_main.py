@@ -46,7 +46,7 @@ def run_for_config(config):
 
     # where we save all the outputs
     scenario = config['general']['scenario']
-    working_dir = os.path.join(get_base_directory(), 'sgt', scenario)
+    working_dir = os.path.join(get_base_directory(), 'seq-subgoal', scenario)
     init_dir(working_dir)
 
     saver_dir = os.path.join(working_dir, 'models', model_name)
