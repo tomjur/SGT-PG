@@ -51,7 +51,7 @@ class Network:
             current_state = [current_policy_distribution.sample()]
         if horizon == 1:
             return current_state
-        suffix_states = self._get_policy_tree(current_state[0], goal_inputs, horizon-1, take_mean)
+        suffix_states = self._get_policy_tree(current_state[-1], goal_inputs, horizon-1, take_mean)
         return current_state + suffix_states
 
     def predict_policy(self, start_inputs, goal_inputs, sess, is_train):
@@ -63,7 +63,7 @@ class Network:
             self.value_networks[level].value_estimation, self._generate_feed_dictionary(current_inputs, goal_inputs)
         )
 
-    def train_policy(self, start_inputs, goal_inputs, next_inputs, labels, sess, symmetric=True):
+    def train_policy(self, start_inputs, goal_inputs, next_inputs, labels, sess, symmetric=False):
         network = self.policy_network
         feed_dictionary = self._generate_feed_dictionary(
             start_inputs, goal_inputs, next_inputs=next_inputs, labels=labels, symmetric=symmetric)
@@ -107,7 +107,10 @@ class Network:
         sess.run(self.policy_network.assign_to_baseline_ops)
 
     def get_all_variables(self):
-        return self.policy_network.model_variables
+        vars = self.policy_network.model_variables
+        for network in self.value_networks:
+            vars = vars + network.model_variables
+        return vars
 
     def _generate_feed_dictionary(self, start_inputs, goal_inputs, next_inputs=None, labels=None, symmetric=False):
         start_inputs_ = np.array(start_inputs)
