@@ -41,37 +41,38 @@ class TrainerSubgoalSequential:
         self.network.update_baseline_policy(self.sess)
         # do optimization steps
         for update_step in range(self.config['model']['consecutive_optimization_steps']):
-            random_sample = random.sample(dataset, min(self.batch_size, len(dataset)))
-            all_starts, all_ends, all_middles, all_costs = [], [], [], []
-            for level in range(self.levels):
-                current_data = [t for t in random_sample if t[-2] == level]
-                if len(current_data) == 0:
-                    continue
-                starts, ends, middles, levels, costs = zip(*current_data)
-                costs = np.expand_dims(np.array(costs), axis=-1)
-                value_estimations = self.network.predict_value(starts, ends, self.sess, level)
+            random.shuffle(dataset)
+            for index in range(0, len(dataset), self.batch_size):
+                current_batch = dataset[index: index + self.batch_size]
+                all_starts, all_ends, all_middles, all_costs = [], [], [], []
+                for level in range(self.levels):
+                    current_data = [t for t in current_batch if t[-2] == level]
+                    if len(current_data) == 0:
+                        continue
+                    starts, ends, middles, levels, costs = zip(*current_data)
+                    costs = np.expand_dims(np.array(costs), axis=-1)
+                    value_estimations = self.network.predict_value(starts, ends, self.sess, level)
 
-                # optimize the value estimation with respect to the actual cost
-                summaries, prediction_loss, _ = self.network.train_value_estimation(starts, ends, costs, self.sess, level)
-                self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
+                    # optimize the value estimation with respect to the actual cost
+                    summaries, prediction_loss, _ = self.network.train_value_estimation(starts, ends, costs, self.sess, level)
+                    self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
 
-                # reduce the value estimate from the costs and save the data
-                costs = costs - value_estimations
-                all_starts.extend(starts)
-                all_ends.extend(ends)
-                all_middles.extend(middles)
-                all_costs.extend(costs)
-
-            try:
+                    # reduce the value estimate from the costs and save the data
+                    costs = costs - value_estimations
+                    all_starts.extend(starts)
+                    all_ends.extend(ends)
+                    all_middles.extend(middles)
+                    all_costs.extend(costs)
                 # train the policy
-                initial_gradient_norm, _, summaries, prediction_loss, _ = self.network.train_policy(
-                    all_starts, all_ends, all_middles, all_costs, self.sess
-                )
-                self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
-                global_step += 1
-            except InvalidArgumentError as error:
-                print('error encountered')
-                break
+                try:
+                    initial_gradient_norm, _, summaries, prediction_loss, _ = self.network.train_policy(
+                        all_starts, all_ends, all_middles, all_costs, self.sess
+                    )
+                    self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
+                    global_step += 1
+                except InvalidArgumentError as error:
+                    print('error encountered')
+                    break
 
         return global_step, successes
 
