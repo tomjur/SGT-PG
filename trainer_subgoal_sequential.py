@@ -65,6 +65,8 @@ class TrainerSubgoalSequential:
                     all_costs.extend(costs)
                 # train the policy
                 try:
+                    if len(all_starts) == 0:
+                        continue
                     initial_gradient_norm, _, summaries, prediction_loss, _ = self.network.train_policy(
                         all_starts, all_ends, all_middles, all_costs, self.sess
                     )
