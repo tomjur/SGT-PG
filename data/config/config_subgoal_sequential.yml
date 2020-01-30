@@ -20,7 +20,7 @@ general:
   cycles_per_trajectory_print: 1000000
   test_frequency: 3
 #  test_frequency: 1
-  limit_workers: 30
+  limit_workers:
 
 cost:
   collision_cost: 100.0
@@ -78,6 +78,25 @@ policy:
   bias_around_midpoint: True
   #  bias_around_midpoint: False
   ppo_epsilon: 0.2
+
+value_estimator:
+  learning_rate: 0.005
+#  learning_rate: 0.005
+  learning_rate_decrease_rate: 1.
+#  learning_rate_decrease_rate: 0.8
+  learning_rate_minimum: 0.00025
+  gradient_limit: 0.0
+#  gradient_limit: 100.0
+  gradient_limit_quantile:
+#  gradient_limit_quantile: 0.9
+  gradient_history_limit: 0
+#  gradient_history_limit: 100
+#  layers: [5, 5]
+#  layers: [50, 50,
+  layers: [20, 20, 20]
+  activation: 'elu'
+#  activation: 'relu'
+#  activation: 'tanh'
 
 curriculum:
 #  use: True

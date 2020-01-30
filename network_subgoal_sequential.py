@@ -28,6 +28,12 @@ class Network:
                 config, self.state_size, self.start_inputs, self.goal_inputs, self.next_inputs,
                 self.label_inputs, self.gradient_limit_manager
             )
+        self.value_networks = [
+            ValueNetwork(
+                config, self.state_size, self.start_inputs, self.goal_inputs, self.label_inputs, level
+            )
+            for level in range(self.number_of_middle_states)
+        ]
 
         # this is the prediction over the entire subtree (element at index l contains the entire trajectory prediction
         # for a tree with l levels
@@ -52,6 +58,11 @@ class Network:
         tree = self.policy_tree_prediction if is_train else self.test_policy_tree_prediction
         return sess.run(tree, self._generate_feed_dictionary(start_inputs, goal_inputs))
 
+    def predict_value(self, current_inputs, goal_inputs, sess, level):
+        return sess.run(
+            self.value_networks[level].value_estimation, self._generate_feed_dictionary(current_inputs, goal_inputs)
+        )
+
     def train_policy(self, start_inputs, goal_inputs, next_inputs, labels, sess, symmetric=True):
         network = self.policy_network
         feed_dictionary = self._generate_feed_dictionary(
@@ -65,6 +76,20 @@ class Network:
         initial_gradients = result[0]
         self.gradient_limit_manager.update_gradient_limit(network.name_prefix, initial_gradients)
         return result
+
+    def train_value_estimation(self, current_inputs, goal_inputs, labels, sess, level):
+        network = self.value_networks[level]
+        feed_dictionary = self._generate_feed_dictionary(
+            current_inputs, goal_inputs, labels=labels)
+        network.gradient_limit_manager.update_feed_dict(feed_dictionary, network.name_prefix)
+        ops = [
+            network.initial_gradients_norm, network.clipped_gradients_norm, network.optimization_summaries,
+            network.prediction_loss, network.optimize
+        ]
+        result = sess.run(ops, feed_dictionary)
+        initial_gradients = result[0]
+        network.gradient_limit_manager.update_gradient_limit(network.name_prefix, initial_gradients)
+        return result[2:]
 
     def decrease_learn_rates(self, sess):
         return sess.run([self.policy_network.decrease_learn_rate_op])
@@ -304,3 +329,90 @@ class PolicyNetwork:
         elif not is_baseline:
             self._reuse = True
         return distribution, model_variables
+
+
+class ValueNetwork:
+    def __init__(self, config, state_size, current_state_inputs, goal_inputs, label_inputs, level):
+        self.config = config
+        self.name_prefix = 'sequential_subgoal_value_estimator_level_{}'.format(level)
+        self.state_size = state_size
+        self.level = level
+        self._reuse = False
+
+        self.current_state_inputs = current_state_inputs
+        self.goal_inputs = goal_inputs
+        self.label_inputs = label_inputs
+
+        self.gradient_limit_manager = GradientLimitManager(
+            gradient_limit=config['value_estimator']['gradient_limit'],
+            gradient_limit_quantile=config['value_estimator']['gradient_limit_quantile'],
+            gradient_history_limit=config['value_estimator']['gradient_history_limit'],
+        )
+        self.gradient_limit_placeholder = self.gradient_limit_manager.set_key(self.name_prefix)
+
+        # get the prediction
+        self.value_estimation, self.model_variables = self._create_network(self.current_state_inputs, self.goal_inputs)
+
+        # compute the prediction loss
+        self.prediction_loss = tf.losses.mean_squared_error(self.label_inputs, self.value_estimation)
+
+        # optimize
+        self.learn_rate_variable = tf.Variable(
+            self.config['value_estimator']['learning_rate'], trainable=False, name='learn_rate_variable')
+        new_learn_rate = tf.maximum(
+            self.config['value_estimator']['learning_rate_minimum'],
+            self.config['value_estimator']['learning_rate_decrease_rate'] * self.learn_rate_variable
+        )
+        self.decrease_learn_rate_op = tf.compat.v1.assign(self.learn_rate_variable, new_learn_rate)
+
+        self.initial_gradients_norm, self.clipped_gradients_norm, self.optimize = \
+            optimize_by_loss(
+                self.prediction_loss, self.model_variables, self.learn_rate_variable, self.gradient_limit_placeholder
+            )
+
+        # summaries
+        merge_summaries = [
+            tf.compat.v1.summary.scalar('{}_value_prediction_loss'.format(self.name_prefix), self.prediction_loss),
+            tf.compat.v1.summary.scalar('{}_learn_rate'.format(self.name_prefix), self.learn_rate_variable),
+        ]
+        if self.initial_gradients_norm is not None:
+            merge_summaries.append(
+                tf.compat.v1.summary.scalar(
+                    '{}_initial_gradients_norm'.format(self.name_prefix),
+                    self.initial_gradients_norm
+                )
+            )
+        if self.clipped_gradients_norm is not None:
+            merge_summaries.append(
+                tf.compat.v1.summary.scalar(
+                    '{}_clipped_gradients_norm'.format(self.name_prefix),
+                    self.clipped_gradients_norm
+                )
+            )
+        self.optimization_summaries = tf.compat.v1.summary.merge(merge_summaries)
+
+    def _create_network(self, current_state_inputs, goal_inputs):
+        reuse = self._reuse
+        name_prefix = self.name_prefix
+        variable_count = len(tf.compat.v1.trainable_variables())
+        activation = get_activation(self.config['value_estimator']['activation'])
+        network_layers = self.config['value_estimator']['layers']
+
+        current_input = tf.concat((current_state_inputs, goal_inputs), axis=1)
+
+        current = current_input
+        for i, layer_size in enumerate(network_layers):
+            current = tf.layers.dense(
+                current, layer_size, activation=activation, name='{}_layer_{}'.format(name_prefix, i), reuse=reuse,
+            )
+
+        value_estimation = tf.layers.dense(
+            current, 1, activation=None, name='{}_prediction'.format(name_prefix), reuse=reuse
+        )
+
+        model_variables = tf.compat.v1.trainable_variables()[variable_count:]
+        if reuse:
+            assert len(model_variables) == 0
+        else:
+            self._reuse = True
+        return value_estimation, model_variables

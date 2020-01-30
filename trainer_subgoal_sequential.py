@@ -27,6 +27,7 @@ class TrainerSubgoalSequential:
         self.steps_per_trajectory_print = config['general']['cycles_per_trajectory_print']
         self.train_episodes_per_cycle = config['general']['train_episodes_per_cycle']
         self.gain = config['model']['gain']
+        self.levels = self.config['model']['number_of_middle_states']
 
         self.train_episodes_counter = 0
 
@@ -40,11 +41,31 @@ class TrainerSubgoalSequential:
         self.network.update_baseline_policy(self.sess)
         # do optimization steps
         for update_step in range(self.config['model']['consecutive_optimization_steps']):
-            starts, ends, middles, costs = zip(*random.sample(dataset, min(self.batch_size, len(dataset))))
-            costs = np.expand_dims(np.array(costs), axis=-1)
+            random_sample = random.sample(dataset, min(self.batch_size, len(dataset)))
+            all_starts, all_ends, all_middles, all_costs = [], [], [], []
+            for level in range(self.levels):
+                current_data = [t for t in random_sample if t[-2] == level]
+                if len(current_data) == 0:
+                    continue
+                starts, ends, middles, levels, costs = zip(*current_data)
+                costs = np.expand_dims(np.array(costs), axis=-1)
+                value_estimations = self.network.predict_value(starts, ends, self.sess, level)
+
+                # optimize the value estimation with respect to the actual cost
+                summaries, prediction_loss, _ = self.network.train_value_estimation(starts, ends, costs, self.sess, level)
+                self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
+
+                # reduce the value estimate from the costs and save the data
+                costs = costs - value_estimations
+                all_starts.extend(starts)
+                all_ends.extend(ends)
+                all_middles.extend(middles)
+                all_costs.extend(costs)
+
             try:
+                # train the policy
                 initial_gradient_norm, _, summaries, prediction_loss, _ = self.network.train_policy(
-                    starts, ends, middles, costs, self.sess
+                    all_starts, all_ends, all_middles, all_costs, self.sess
                 )
                 self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
                 global_step += 1
@@ -83,8 +104,8 @@ class TrainerSubgoalSequential:
             endpoints, base_costs, future_costs, is_valid_episode = episode_results[path_id]
             goal = endpoints[-1]
             # add data
-            for start_state, next_state, _, _, cost in future_costs:
-                dataset.append((start_state, goal, next_state, cost))
+            for start_state, next_state, _, _, level, cost in future_costs:
+                dataset.append((start_state, goal, next_state, level, cost))
 
             endpoints_by_path[path_id] = (endpoints, is_valid_episode)
 

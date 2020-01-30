@@ -62,7 +62,7 @@ class EpisodeRunnerSubgoalSequential:
             is_start_valid, is_goal_valid, free_length, collision_length = cost_response[2:]
             is_segment_valid = collision_length == 0.0
             cost = self._get_cost(free_length, collision_length)
-            current_tuple = (start, end, is_start_valid, is_goal_valid, cost)
+            current_tuple = (start, end, is_start_valid, is_goal_valid, i, cost)
             base_costs.append(current_tuple)
             future_costs.append(current_tuple)
             is_valid_episode = is_valid_episode and is_segment_valid
