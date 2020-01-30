@@ -219,6 +219,8 @@ class GameWorker(multiprocessing.Process):
             # compute the costs
             # if the agent is close to the goal
             close_to_goal = self._are_close(joints, goal_joints, self.closeness)
+            distance_to_goal = np.linalg.norm(new_state - goal_joints)
+
             # if the agent moved too much already
             distance_limit_reached = distance_covered > 2 * np.sqrt(self._panda_scene_manager.number_of_joints) * 10
             # if the agent did not move (stuck in place)
@@ -227,14 +229,14 @@ class GameWorker(multiprocessing.Process):
             max_counter = counter >= self.max_steps
 
             if is_collision:
-                cost = self.collision_cost
+                cost = self.collision_cost * (1. + distance_to_goal)
                 should_stop = True
             elif close_to_goal:
                 cost = -self.goal_reached_reward
                 is_successful = True
                 should_stop = True
             elif distance_limit_reached or stationary_agent or max_counter:
-                cost = self.collision_cost
+                cost = self.collision_cost * (1. + distance_to_goal)
                 should_stop = True
             else:
                 cost = self.keep_alive_cost
@@ -359,4 +361,3 @@ class GameWorker(multiprocessing.Process):
     @staticmethod
     def _are_close(s1, s2, closeness):
         return np.linalg.norm(np.array(s1) - np.array(s2)) < closeness
-
