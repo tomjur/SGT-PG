@@ -41,7 +41,7 @@ class TrainerSubgoalSequential:
         # do optimization steps
         for update_step in range(self.config['model']['consecutive_optimization_steps']):
             starts, ends, middles, costs = zip(*random.sample(dataset, min(self.batch_size, len(dataset))))
-            costs = costs = np.expand_dims(np.array(costs), axis=-1)
+            costs = np.expand_dims(np.array(costs), axis=-1)
             try:
                 initial_gradient_norm, _, summaries, prediction_loss, _ = self.network.train_policy(
                     starts, ends, middles, costs, self.sess
