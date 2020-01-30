@@ -33,8 +33,8 @@ cost:
   huber_loss_delta: 1.0
 
 model:
-  number_of_middle_states: 5
-  batch_size: 20000
+  number_of_middle_states: 1
+  batch_size: 10
   reset_best_every: 0
 #  reset_best_every: 50
   decrease_learn_rate_if_static_success: 50
@@ -45,7 +45,7 @@ model:
   gain: 'future-only'
   repeat_train_trajectories: 10
 #  repeat_train_trajectories: 3
-  consecutive_optimization_steps: 1
+  consecutive_optimization_steps: 10
 
 policy:
   learning_rate: 0.005
@@ -68,10 +68,10 @@ policy:
   base_std: 0.05
   decrease_std_every: 100
   std_decrease_rate: 0.95
-  distance_adaptive_std: False
-#  distance_adaptive_std: True
-#  learn_std: False
-  learn_std: True
+#  distance_adaptive_std: False
+  distance_adaptive_std: True
+  learn_std: False
+#  learn_std: True
   max_entropy_coefficient: 1.
   #  bias_activation_is_tanh: True
   bias_activation_is_tanh: False
