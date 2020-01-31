@@ -35,6 +35,10 @@ panda_game:
   move: 'single-action'
 #  move: 'multi-action-smooth'
   max_steps: 1000
+  add_distance_to_failed: True
+#  add_distance_to_failed: False
+  add_distance_to_keep_alive: True
+#  add_distance_to_keep_alive: False
 
 cost:
   collision_cost: 100.0
@@ -47,7 +51,6 @@ cost:
 #  type: 'square'
   huber_loss_delta: 1.0
   goal_closeness_distance: 0.01
-
 
 model:
   gamma: 1.
