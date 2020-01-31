@@ -7,26 +7,6 @@ from path_helper import get_base_directory, deserialize_uncompress
 
 scenario = 'panda_easy'
 
-# angle = 135
-# path_ids = [0]
-# test_trajectories_file = '/home/tom/sgt-pg-results/sgt-e1/data/sgt/panda_easy/test_trajectories/2020_01_29_07_58_09/level2_challenging.txt'
-
-# angle = 15
-# path_ids = [33]
-# test_trajectories_file = '/home/tom/sgt-pg-results/sgt-e1/data/sgt/panda_easy/test_trajectories/2020_01_29_07_58_09/level2_all.txt'
-
-# angle = -155
-# path_ids = [79]
-# test_trajectories_file = '/home/tom/sgt-pg-results/sgt-e1/data/sgt/panda_easy/test_trajectories/2020_01_29_07_58_09/level2_all.txt'
-
-# angle = -155
-# path_ids = [93]
-# test_trajectories_file = '/home/tom/sgt-pg-results/sgt-e1/data/sgt/panda_easy/test_trajectories/2020_01_29_07_58_09/level2_all.txt'
-
-# angle = -155
-# path_ids = [31]
-# test_trajectories_file = '/home/tom/sgt-pg-results/sgt-e1/data/sgt/panda_easy/test_trajectories/2020_01_29_07_58_09/level2_all.txt'
-
 angle = -155
 path_ids = [86]
 test_trajectories_file = '/home/tom/sgt-pg-results/sgt-e1/data/sgt/panda_easy/test_trajectories/2020_01_29_07_58_09/level2_all.txt'
@@ -40,13 +20,9 @@ def show_trajectory(endpoints, panda_scene_manager):
     # assert the teleportation was successful
     assert panda_scene_manager.is_close(endpoints[0])
     assert not panda_scene_manager.is_collision()
-    # walk the segment
-    distance_traveled = 0.0
-    for i in range(len(endpoints)-1):
-        sum_free, sum_collision = panda_scene_manager.smooth_walk(endpoints[i+1], max_target_distance=1., sensitivity=0.01)
-        assert sum_collision == 0.0
-        distance_traveled += sum_free
-    print('total distance {}'.format(distance_traveled))
+    sum_free, sum_collision = panda_scene_manager.smooth_walk(endpoints[-1], max_target_distance=1., sensitivity=0.01)
+    print('sum collision {}'.format(sum_collision))
+    assert sum_collision > 0.0
 
 
 
