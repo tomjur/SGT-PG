@@ -79,16 +79,18 @@ class TrainerSubgoal:
         self.network.update_baseline_policy(self.sess, top_level)
         # do optimization steps
         for update_step in range(self.config['model']['consecutive_optimization_steps']):
-            starts, ends, middles, costs = zip(*random.sample(valid_data, min(self.batch_size, len(valid_data))))
-            try:
-                initial_gradient_norm, _, summaries, prediction_loss, _ = self.network.train_policy(
-                    top_level, starts, ends, middles, costs, self.sess
-                )
-                self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
-                global_step += 1
-            except InvalidArgumentError as error:
-                print('error encountered')
-                break
+            random.shuffle(valid_data)
+            for index in range(0, len(valid_data), self.batch_size):
+                starts, ends, middles, costs = zip(*valid_data[index: index + self.batch_size])
+                try:
+                    initial_gradient_norm, _, summaries, prediction_loss, _ = self.network.train_policy(
+                        top_level, starts, ends, middles, costs, self.sess
+                    )
+                    self.summaries_collector.write_train_optimization_summaries(summaries, global_step)
+                    global_step += 1
+                except InvalidArgumentError as error:
+                    print('error encountered')
+                    break
 
         return global_step, successes
 
