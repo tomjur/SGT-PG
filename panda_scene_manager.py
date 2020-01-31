@@ -220,6 +220,8 @@ class PandaSceneManager:
         steps_counter = 0
         current_joints = np.array(self.get_robot_state()[0])
         while not (self.is_close(goal) and not self.is_moving()):
+            if self.use_ui:
+                time.sleep(0.05)
             direction = goal - current_joints
             distance = np.linalg.norm(direction)
             direction = direction / distance
