@@ -129,6 +129,7 @@ class GameWorker(multiprocessing.Process):
         self.max_steps = config['panda_game']['max_steps']
         self.add_distance_to_failed = config['panda_game']['add_distance_to_failed']
         self.add_distance_to_keep_alive = config['panda_game']['add_distance_to_keep_alive']
+        self.add_distance_to_success = config['panda_game']['add_distance_to_success']
 
         self.requests_queue = requests_queue
         self.worker_specific_request_queue = worker_specific_request_queue
@@ -234,7 +235,7 @@ class GameWorker(multiprocessing.Process):
                 cost = self.collision_cost * (1. + self.add_distance_to_failed * distance_to_goal)
                 should_stop = True
             elif close_to_goal:
-                cost = -self.goal_reached_reward
+                cost = -self.goal_reached_reward * (1. + self.add_distance_to_success * distance_to_goal)
                 is_successful = True
                 should_stop = True
             elif distance_limit_reached or stationary_agent or max_counter:

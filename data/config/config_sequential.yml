@@ -39,6 +39,8 @@ panda_game:
 #  add_distance_to_failed: False
   add_distance_to_keep_alive: True
 #  add_distance_to_keep_alive: False
+  add_distance_to_success: True
+#  add_distance_to_success: False
 
 cost:
   collision_cost: 100.0
