@@ -1,0 +1,204 @@
+<KinBody name="lrmate200id">
+    <Body name="panda_link0">
+        <Geom type="trimesh">
+            <Render>meshes/visual/link0.stl</Render>
+            <Collision>meshes/collision/link0.stl</Collision>
+        </Geom>
+    </Body>
+
+    <Body name="panda_link1">
+        <OffsetFrom>panda_link0</OffsetFrom>
+        <Translation>0 0 0.333</Translation>
+        <Geom type="trimesh">
+            <Render>meshes/visual/link1.stl</Render>
+            <Collision>meshes/collision/link1.stl</Collision>
+        </Geom>
+    </Body>
+
+    <Body name="panda_link2">
+        <OffsetFrom>panda_link1</OffsetFrom>
+        <RotationAxis>1 0 0 -90</RotationAxis>
+        <Geom type="trimesh">
+            <Render>meshes/visual/link2.stl</Render>
+            <Collision>meshes/collision/link2.stl</Collision>
+        </Geom>
+    </Body>
+
+    <Body name="panda_link3">
+        <OffsetFrom>panda_link2</OffsetFrom>
+        <Translation>0 -0.316 0</Translation>
+        <RotationAxis>1 0 0 90</RotationAxis>
+        <Geom type="trimesh">
+            <Render>meshes/visual/link3.stl</Render>
+            <Collision>meshes/collision/link3.stl</Collision>
+        </Geom>
+    </Body>
+
+    <Body name="panda_link4">
+        <OffsetFrom>panda_link3</OffsetFrom>
+        <Translation>0.0825 0 0</Translation>
+        <RotationAxis>1 0 0 90</RotationAxis>
+        <Geom type="trimesh">
+            <Render>meshes/visual/link4.stl</Render>
+            <Collision>meshes/collision/link4.stl</Collision>
+        </Geom>
+    </Body>
+
+    <Body name="panda_link5">
+        <OffsetFrom>panda_link4</OffsetFrom>
+        <Translation>-0.0825 0.384 0</Translation>
+        <RotationAxis>1 0 0 -90</RotationAxis>
+        <Geom type="trimesh">
+            <Render>meshes/visual/link5.stl</Render>
+            <Collision>meshes/collision/link5.stl</Collision>
+        </Geom>
+    </Body>
+
+    <Body name="panda_link6">
+        <OffsetFrom>panda_link5</OffsetFrom>
+        <RotationAxis>1 0 0 90</RotationAxis>
+        <Geom type="trimesh">
+            <Render>meshes/visual/link6.stl</Render>
+            <Collision>meshes/collision/link6.stl</Collision>
+        </Geom>
+    </Body>
+
+    <Body name="panda_link7">
+        <OffsetFrom>panda_link6</OffsetFrom>
+        <Translation>0.088 0 0</Translation>
+        <RotationAxis>1 0 0 90</RotationAxis>
+        <Geom type="trimesh">
+            <Render>meshes/visual/link7.stl</Render>
+            <Collision>meshes/collision/link7.stl</Collision>
+        </Geom>
+    </Body>
+
+    <Body name="panda_link8">
+        <OffsetFrom>panda_link7</OffsetFrom>
+        <Translation>0 0 0.107</Translation>
+    </Body>
+
+    <Body name="panda_hand">
+        <OffsetFrom>panda_link8</OffsetFrom>
+        <RotationAxis>0 0 1 -45</RotationAxis>
+        <Geom type="trimesh">
+            <Render>meshes/visual/hand.stl</Render>
+            <Collision>meshes/collision/hand.stl</Collision>
+        </Geom>
+    </Body>
+
+    <Body name="panda_leftfinger">
+        <OffsetFrom>panda_hand</OffsetFrom>
+        <Translation>0 0 0.0584</Translation>
+        <Geom type="trimesh">
+            <Render>meshes/visual/finger.stl</Render>
+            <Collision>meshes/collision/finger.stl</Collision>
+        </Geom>
+    </Body>
+
+    <Body name="panda_rightfinger">
+        <OffsetFrom>panda_hand</OffsetFrom>
+        <Translation>0 0 0.0584</Translation>
+        <Geom type="trimesh">
+            <Render>meshes/visual/finger.stl</Render>
+            <Collision>meshes/collision/finger.stl</Collision>
+            <RotationAxis>0 0 1 180</RotationAxis>
+        </Geom>
+    </Body>
+
+
+    <Joint name="panda_joint1" type="hinge">
+        <OffsetFrom>panda_link1</OffsetFrom>
+        <Body>panda_link0</Body>
+        <Body>panda_link1</Body>
+        <Axis>0 0 1</Axis>
+        <LimitsDeg>-166 166</LimitsDeg>
+        <MaxVelDeg>124.6</MaxVelDeg>
+    </Joint>
+
+    <Joint name="panda_joint2" type="hinge">
+        <OffsetFrom>panda_link2</OffsetFrom>
+        <Body>panda_link1</Body>
+        <Body>panda_link2</Body>
+        <Axis>0 0 1</Axis>
+        <LimitsDeg>-101 101</LimitsDeg>
+        <MaxVelDeg>124.6</MaxVelDeg>
+    </Joint>
+
+    <Joint name="panda_joint3" type="hinge">
+        <OffsetFrom>panda_link3</OffsetFrom>
+        <Body>panda_link2</Body>
+        <Body>panda_link3</Body>
+        <Axis>0 0 1</Axis>
+        <LimitsDeg>-166 166</LimitsDeg>
+        <MaxVelDeg>124.6</MaxVelDeg>
+    </Joint>
+
+    <Joint name="panda_joint4" type="hinge">
+        <OffsetFrom>panda_link4</OffsetFrom>
+        <Body>panda_link3</Body>
+        <Body>panda_link4</Body>
+        <Axis>0 0 1</Axis>
+        <LimitsDeg>-176 -4</LimitsDeg>
+        <MaxVelDeg>124.6</MaxVelDeg>
+    </Joint>
+
+    <Joint name="panda_joint5" type="hinge">
+        <OffsetFrom>panda_link5</OffsetFrom>
+        <Body>panda_link4</Body>
+        <Body>panda_link5</Body>
+        <Axis>0 0 1</Axis>
+        <LimitsDeg>-166 166</LimitsDeg>
+        <MaxVelDeg>149.5</MaxVelDeg>
+    </Joint>
+
+    <Joint name="panda_joint6" type="hinge">
+        <OffsetFrom>panda_link6</OffsetFrom>
+        <Body>panda_link5</Body>
+        <Body>panda_link6</Body>
+        <Axis>0 0 1</Axis>
+        <LimitsDeg>-1 215</LimitsDeg>
+        <MaxVelDeg>149.5</MaxVelDeg>
+    </Joint>
+
+    <Joint name="panda_joint7" type="hinge">
+        <OffsetFrom>panda_link7</OffsetFrom>
+        <Body>panda_link6</Body>
+        <Body>panda_link7</Body>
+        <Axis>0 0 1</Axis>
+        <LimitsDeg>-166 166</LimitsDeg>
+        <MaxVelDeg>149.5</MaxVelDeg>
+    </Joint>
+
+    <Joint name="panda_joint8" enable="false">
+        <Body>panda_link7</Body>
+        <Body>panda_link8</Body>
+        <Limits>0 0</Limits>
+    </Joint>
+
+    <Joint name="panda_hand_joint" enable="false">
+        <Body>panda_link8</Body>
+        <Body>panda_hand</Body>
+        <Limits>0 0</Limits>
+    </Joint>
+
+    <Joint name="panda_finger_joint1" type="slider">
+        <OffsetFrom>panda_leftfinger</OffsetFrom>
+        <Body>panda_hand</Body>
+        <Body>panda_leftfinger</Body>
+        <Axis>0 1 0</Axis>
+        <LimitsDeg>-2.3 2.3</LimitsDeg>
+        <MaxVelDeg>11.5</MaxVelDeg>
+    </Joint>
+
+    <Joint name="panda_finger_joint2" type="slider" mimic_pos="panda_finger_joint1">
+        <OffsetFrom>panda_rightfinger</OffsetFrom>
+        <Body>panda_hand</Body>
+        <Body>panda_rightfinger</Body>
+        <Axis>0 -1 0</Axis>
+        <LimitsDeg>-2.3 2.3</LimitsDeg>
+        <MaxVelDeg>11.5</MaxVelDeg>
+    </Joint>
+
+
+</KinBody>
