@@ -8,16 +8,16 @@ general:
 #  scenario: 'point_robot_box_1.6'
 #  scenario: 'point_robot_corridor'
 #  scenario: 'point_robot_hard_corridors'
-#  scenario: panda_no_obs
-#  scenario: panda_easy
-#  scenario: panda_hard
   scenario: panda_no_obs_fixed_start
-#  scenario: panda_easy_fixed_start
+  #  scenario: panda_no_obs
+  #  scenario: panda_easy
+  #  scenario: panda_easy_fixed_start
+  #  scenario: panda_hard
   gpu_usage: 0.1
   actor_gpu_usage: 0.05
   training_cycles: 30000
 #  train_episodes_per_cycle: 5000
-  train_episodes_per_cycle: 50
+  train_episodes_per_cycle: 100
 #  train_episodes_per_cycle: 5
 #  test_episodes: 1
   test_episodes: 100
@@ -35,16 +35,16 @@ panda_game:
   move: 'single-action'
 #  move: 'multi-action-smooth'
   max_steps: 1000
-  add_distance_to_failed: True
-#  add_distance_to_failed: False
-  add_distance_to_keep_alive: True
-#  add_distance_to_keep_alive: False
-  add_distance_to_success: True
-#  add_distance_to_success: False
+#  add_distance_to_failed: True
+  add_distance_to_failed: False
+#  add_distance_to_keep_alive: True
+  add_distance_to_keep_alive: False
+#  add_distance_to_success: True
+  add_distance_to_success: False
 
 cost:
-  collision_cost: 100.0
-  goal_reward: 100.
+  collision_cost: 1000.0
+  goal_reward: 1000.
   is_constant_collision_cost: False
   free_cost: 1.0
   is_constant_free_cost: False
@@ -59,21 +59,21 @@ model:
   batch_size: 32
   reset_best_every: 0
 #  reset_best_every: 50
-  decrease_learn_rate_if_static_success: 200
+  decrease_learn_rate_if_static_success: 100
   restore_on_decrease: True
 #  restore_on_decrease: False
   stop_training_after_learn_rate_decrease: 3
-  repeat_train_trajectories:
-#  repeat_train_trajectories: 2
-  epochs: 1
+#  repeat_train_trajectories:
+  repeat_train_trajectories: 10
+  epochs: 10
 
 policy:
-  learning_rate: 0.001
+  learning_rate: 0.0001
 #  learning_rate: 0.005
   learning_rate_decrease_rate: 1.
 #  learning_rate_decrease_rate: 0.8
-  learning_rate_minimum: 0.00025
-  gradient_limit: 0.0
+  learning_rate_minimum: 0.000025
+  gradient_limit: 10.0
 #  gradient_limit: 100.0
   gradient_limit_quantile:
 #  gradient_limit_quantile: 0.9
@@ -96,16 +96,16 @@ policy:
   bias_activation_is_tanh: False
 #  bias_towards_goal:
   bias_towards_goal: 0.01
-  ppo_epsilon: 0.1
+  ppo_epsilon: 0.05
 
 value_estimator:
-  learning_rate: 0.005
+  learning_rate: 0.0005
 #  learning_rate: 0.005
   learning_rate_decrease_rate: 1.
 #  learning_rate_decrease_rate: 0.8
   learning_rate_minimum: 0.00025
-  gradient_limit: 0.0
-#  gradient_limit: 100.0
+#  gradient_limit: 0.0
+  gradient_limit: 1000.0
   gradient_limit_quantile:
 #  gradient_limit_quantile: 0.9
   gradient_history_limit: 0
@@ -122,4 +122,4 @@ curriculum:
 #  use: False
   times_goal_start_coefficient: 1.5
   raise_times: 1.1
-  raise_when_train_above: 0.05
+  raise_when_train_above: 0.9
