@@ -69,7 +69,7 @@ class PandaGameSequential(AbstractMotionPlanningGameSequential):
                 start = np.array([float(f) for f in lines[2 * index].split(', ')])
             # append to results
             result.append((start, goal))
-        return result
+        return result[:1]
 
     def run_episodes(self, start_goal_pairs, is_train):
         for path_id, (start, goal) in enumerate(start_goal_pairs):
@@ -306,7 +306,8 @@ class GameWorker(multiprocessing.Process):
                 virtual_state1 = [self._random.uniform(-1., 1.) for _ in range(state_size)]
             if not self._is_free_state(virtual_state1):
                 continue
-            virtual_state2 = [self._random.uniform(-1., 1.) for _ in range(state_size)]
+            # virtual_state2 = [self._random.uniform(-1., 1.) for _ in range(state_size)]
+            virtual_state2 = [1.0 + self._random.uniform(-0.01, 0.) for _ in range(state_size)]
             if curriculum_coefficient is None:
                 # do not use curriculum
                 if self._are_close(virtual_state1, virtual_state2, self.closeness):
