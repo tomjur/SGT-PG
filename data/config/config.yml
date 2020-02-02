@@ -9,10 +9,10 @@ general:
 #  scenario: 'point_robot_corridor'
 #  scenario: 'point_robot_hard_corridors'
 #  scenario: panda_no_obs
-  scenario: panda_no_obs_fixed_start
+#  scenario: panda_no_obs_fixed_start
 #  scenario: panda_easy
 #  scenario: panda_easy_fixed_start
-#  scenario: panda_hard
+  scenario: panda_hard
   gpu_usage: 0.2
   training_cycles_per_level: 30000
   train_episodes_per_cycle: 30
@@ -20,7 +20,7 @@ general:
   cycles_per_trajectory_print: 1000000
   test_frequency: 3
 #  test_frequency: 1
-  limit_workers: 30
+  limit_workers:
 
 cost:
   collision_cost: 100.0
@@ -40,7 +40,7 @@ model:
   batch_size: 20000
   reset_best_every: 0
 #  reset_best_every: 50
-  decrease_learn_rate_if_static_success: 50
+  decrease_learn_rate_if_static_success: 40
   restore_on_decrease: True
 #  restore_on_decrease: False
   stop_training_after_learn_rate_decrease: 3
@@ -71,8 +71,8 @@ policy:
   base_std: 0.05
   decrease_std_every: 100
   std_decrease_rate: 0.95
-  distance_adaptive_std: False
-#  distance_adaptive_std: True
+#  distance_adaptive_std: False
+  distance_adaptive_std: True
 #  learn_std: False
   learn_std: True
   max_entropy_coefficient: 1.
