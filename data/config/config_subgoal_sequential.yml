@@ -13,6 +13,7 @@ general:
 #  scenario: panda_easy
 #  scenario: panda_easy_fixed_start
 #  scenario: panda_hard
+#  scenario: panda_poles
   gpu_usage: 0.2
   training_cycles_per_level: 30000
   train_episodes_per_cycle: 30
