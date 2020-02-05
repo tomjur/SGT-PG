@@ -36,16 +36,16 @@ panda_game:
   move: 'single-action'
 #  move: 'multi-action-smooth'
   max_steps: 1000
-#  add_distance_to_failed: True
-  add_distance_to_failed: False
-#  add_distance_to_keep_alive: True
-  add_distance_to_keep_alive: False
+  add_distance_to_failed: True
+#  add_distance_to_failed: False
+  add_distance_to_keep_alive: True
+#  add_distance_to_keep_alive: False
 #  add_distance_to_success: True
   add_distance_to_success: False
 
 cost:
   collision_cost: 1000.0
-  goal_reward: 1000.
+  goal_reward: 6000.
   is_constant_collision_cost: False
   free_cost: 1.0
   is_constant_free_cost: False
@@ -56,7 +56,7 @@ cost:
   goal_closeness_distance: 0.01
 
 model:
-  gamma: 1.
+  gamma: 0.95
   batch_size: 32
   reset_best_every: 0
 #  reset_best_every: 50
