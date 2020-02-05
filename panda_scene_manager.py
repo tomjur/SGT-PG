@@ -150,9 +150,16 @@ class PandaSceneManager:
         collisions = self.get_collisions()
         return len(collisions) > 0
 
+    @staticmethod
+    def _get_color():
+        # return [0.2, 0.2, 0.2, 0.8] # black
+        return [0.6, 0.6, 0.6, 0.8]  # grey
+        # return [0.95, 0.95, 0.95, 0.8] # white
+
     def add_sphere(self, radius, base_position, mass=0.):
         collision_sphere = p.createCollisionShape(p.GEOM_SPHERE, radius=radius, physicsClientId=self.my_id)
-        visual_sphere = p.createVisualShape(p.GEOM_SPHERE, radius=radius, physicsClientId=self.my_id)
+        visual_sphere = p.createVisualShape(p.GEOM_SPHERE, radius=radius, rgbaColor=self._get_color(),
+                                            physicsClientId=self.my_id)
         sphere = p.createMultiBody(
             baseMass=mass, baseCollisionShapeIndex=collision_sphere, baseVisualShapeIndex=visual_sphere,
             basePosition=base_position, physicsClientId=self.my_id
@@ -162,7 +169,8 @@ class PandaSceneManager:
 
     def add_box(self, sides, base_position, mass=0.):
         collision_box = p.createCollisionShape(p.GEOM_BOX, halfExtents=sides, physicsClientId=self.my_id)
-        visual_box = p.createVisualShape(p.GEOM_BOX, halfExtents=sides, physicsClientId=self.my_id)
+        visual_box = p.createVisualShape(p.GEOM_BOX, halfExtents=sides, rgbaColor=self._get_color(),
+                                         physicsClientId=self.my_id)
         box = p.createMultiBody(
             baseMass=mass, baseCollisionShapeIndex=collision_box, baseVisualShapeIndex=visual_box,
             basePosition=base_position, physicsClientId=self.my_id
