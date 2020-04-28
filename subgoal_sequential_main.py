@@ -27,6 +27,9 @@ def _get_game(config):
         if limit_workers is not None:
             max_cores = min(limit_workers, max_cores)
         return PandaGameSubgoal(scenario, max_cores=max_cores)
+    elif 'disks' in scenario:
+        from disks_subgoal_game import DisksSubgoalGame
+        return DisksSubgoalGame()
     else:
         assert False
 

@@ -97,7 +97,7 @@ class PandaGameSubgoal(AbstractMotionPlanningGameSubgoal):
             results[path_id] = {t[0]: t[1] for t in path_results}
         return results
 
-    def get_free_start_goals(self, number_of_episodes, curriculum_coefficient):
+    def get_start_goals(self, number_of_episodes, curriculum_coefficient, get_free_states):
         # how many episodes to collect?
         if len(self._queries_buffer) < number_of_episodes:
             # initial steps - collect enough to sample randomly for a couple of cycles
@@ -110,17 +110,17 @@ class PandaGameSubgoal(AbstractMotionPlanningGameSubgoal):
                 queries_to_generate = 0
                 self._queries_update_counter += 1
         # collect
-        new_queries = self._get_free_start_goals_from_game(queries_to_generate, curriculum_coefficient)
+        new_queries = self._get_start_goals_from_game(queries_to_generate, curriculum_coefficient, get_free_states)
         self._queries_buffer.extend(new_queries)
         # shuffle and remove extra
         random.shuffle(self._queries_buffer)
         self._queries_buffer = self._queries_buffer[:self._max_queries_buffer_size]
         return self._queries_buffer[:number_of_episodes]
 
-    def _get_free_start_goals_from_game(self, number_of_episodes, curriculum_coefficient):
+    def _get_start_goals_from_game(self, number_of_episodes, curriculum_coefficient, get_free_states):
         # put all requests
         for i in range(number_of_episodes):
-            self.requests_queue.put((i, 0, curriculum_coefficient))
+            self.requests_queue.put((i, 0, (curriculum_coefficient, get_free_states)))
 
         # pull all responses
         results = []
@@ -170,7 +170,8 @@ class GameWorker(multiprocessing.Process):
                 path_id, message_type, params = self.requests_queue.get(block=True, timeout=0.001)
                 if message_type == 0:
                     # get a valid random state
-                    response = self.get_valid_start_goal(params)
+                    curriculum_coefficient, get_free_states = params
+                    response = self.get_valid_start_goal(curriculum_coefficient, get_free_states)
                 elif message_type == 1:
                     # check terminal segments
                     path_cost_results = [
@@ -202,7 +203,7 @@ class GameWorker(multiprocessing.Process):
         sum_collision += truncated_distance_start + truncated_distance_end
         return start, end, is_start_valid, is_goal_valid, sum_free, sum_collision
 
-    def get_valid_start_goal(self, curriculum_coefficient):
+    def get_valid_start_goal(self, curriculum_coefficient, get_free_states):
         while True:
             state_size = self._panda_scene_manager.number_of_joints
             if '_fixed_start' in self.scenario:

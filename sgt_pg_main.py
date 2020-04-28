@@ -27,6 +27,9 @@ def _get_game(config):
         if limit_workers is not None:
             max_cores = min(limit_workers, max_cores)
         return PandaGameSubgoal(scenario, max_cores=max_cores)
+    elif 'disks' in scenario:
+        from disks_subgoal_game import DisksSubgoalGame
+        return DisksSubgoalGame()
     else:
         assert False
 
@@ -78,6 +81,9 @@ def run_for_config(config):
 
         def policy_function(starts, goals, level, is_train):
             res = network.predict_policy(starts, goals, level, sess, is_train)
+            means = 0.5 * (np.array(starts) + np.array(goals))
+            distance = np.linalg.norm(res[0] - means, axis=1)
+            print(f'distance from mean: mean {distance.mean()} min {distance.min()} max {distance.max()}')
             if np.any(np.isnan(res)):
                 print_and_log('######################## Nan predictions detected...')
             return res

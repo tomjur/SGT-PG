@@ -12,11 +12,13 @@ general:
 #  scenario: panda_no_obs_fixed_start
 #  scenario: panda_easy
 #  scenario: panda_easy_fixed_start
+#  scenario: panda_hard
 #  scenario: panda_poles
-  scenario: panda_hard
+  scenario: disks
   gpu_usage: 0.2
   training_cycles_per_level: 30000
-  train_episodes_per_cycle: 30
+#  train_episodes_per_cycle: 30
+  train_episodes_per_cycle: 120
   save_every_cycles: 1000000
   cycles_per_trajectory_print: 1000000
   test_frequency: 3
@@ -41,14 +43,15 @@ model:
   batch_size: 20000
   reset_best_every: 0
 #  reset_best_every: 50
-  decrease_learn_rate_if_static_success: 40
+#  decrease_learn_rate_if_static_success: 40
+  decrease_learn_rate_if_static_success: 50
   restore_on_decrease: True
 #  restore_on_decrease: False
   stop_training_after_learn_rate_decrease: 3
 #  gain: 'full-traj'
   gain: 'future-only'
-  repeat_train_trajectories: 10
-#  repeat_train_trajectories: 3
+#  repeat_train_trajectories: 10
+  repeat_train_trajectories: 40
   consecutive_optimization_steps: 1
 
 policy:
@@ -71,17 +74,19 @@ policy:
   activation: 'tanh'
   base_std: 0.05
   decrease_std_every: 100
-  std_decrease_rate: 0.95
-#  distance_adaptive_std: False
-  distance_adaptive_std: True
-#  learn_std: False
-  learn_std: True
+  std_decrease_rate: 1.0
+  distance_adaptive_std: False
+#  distance_adaptive_std: True
+  learn_std: False
+#  learn_std: True
   max_entropy_coefficient: 1.
   #  bias_activation_is_tanh: True
   bias_activation_is_tanh: False
   bias_around_midpoint: True
   #  bias_around_midpoint: False
-  ppo_epsilon: 0.2
+#  ppo_epsilon: 0.1
+#  ppo_epsilon: 0.2
+  ppo_epsilon: 0.5
 
 curriculum:
 #  use: True

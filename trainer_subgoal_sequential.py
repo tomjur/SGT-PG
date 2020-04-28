@@ -1,11 +1,8 @@
-import os
 import random
 import numpy as np
 from tensorflow.python.framework.errors_impl import InvalidArgumentError
 
-from path_helper import init_dir
 from log_utils import print_and_log
-from model_saver import ModelSaver
 
 
 class TrainerSubgoalSequential:
@@ -80,7 +77,7 @@ class TrainerSubgoalSequential:
 
     def collect_train_data(self, count):
         print_and_log('collecting {} train episodes'.format(count))
-        start_goal_pairs = self.episode_runner.game.get_free_start_goals(count, self.curriculum_coefficient)
+        start_goal_pairs = self.episode_runner.game.get_start_goals(count, self.curriculum_coefficient, True)
         return self.collect_data(start_goal_pairs, True)
 
     def collect_test_data(self, is_challenging=False):

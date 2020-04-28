@@ -9,14 +9,16 @@ general:
 #  scenario: 'point_robot_corridor'
 #  scenario: 'point_robot_hard_corridors'
 #  scenario: panda_no_obs
-  scenario: panda_no_obs_fixed_start
+#  scenario: panda_no_obs_fixed_start
 #  scenario: panda_easy
 #  scenario: panda_easy_fixed_start
 #  scenario: panda_hard
 #  scenario: panda_poles
+  scenario: disks
   gpu_usage: 0.2
   training_cycles_per_level: 30000
   train_episodes_per_cycle: 30
+#  train_episodes_per_cycle: 120
   save_every_cycles: 1000000
   cycles_per_trajectory_print: 1000000
   test_frequency: 3
@@ -44,8 +46,8 @@ model:
   stop_training_after_learn_rate_decrease: 3
 #  gain: 'full-traj'
   gain: 'future-only'
-  repeat_train_trajectories: 10
-#  repeat_train_trajectories: 3
+#  repeat_train_trajectories: 10
+  repeat_train_trajectories: 40
   consecutive_optimization_steps: 1
 
 policy:

@@ -41,13 +41,13 @@ class PointRobotGameSubgoal(AbstractMotionPlanningGameSubgoal):
             if self.point_robot_manager.is_free(state):
                 return state
 
-    def get_free_start_goals(self, number_of_episodes, curriculum_coefficient):
+    def get_start_goals(self, number_of_episodes, curriculum_coefficient, get_free_states):
         result = []
         while len(result) < number_of_episodes:
-            s = self._get_free_state()
+            s = self._get_free_state() if get_free_states else self._get_random_state()
             if curriculum_coefficient is None:
                 # don't use curriculum, get a free state
-                g = self._get_free_state()
+                g = self._get_free_state() if get_free_states else self._get_random_state()
                 result.append((s, g))
             else:
                 # use curriculum, choose a direction vector, and advance according to the direction
@@ -56,7 +56,7 @@ class PointRobotGameSubgoal(AbstractMotionPlanningGameSubgoal):
                 size = np.random.uniform(0., curriculum_coefficient)
                 direction *= size
                 g = s + direction
-                if self.is_free_state(g):
+                if not get_free_states or self.is_free_state(g):
                     result.append((s, g))
         return result
 
