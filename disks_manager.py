@@ -63,7 +63,6 @@ class DisksManager:
         union_area = motions_union.area
 
         collision_area = intersection_area / union_area
-        assert collision_area <= 1.0001
         collision_area = max(collision_area, 0.)
         collision_area = min(collision_area, 1.)
         free_area = 1. - collision_area
