@@ -29,7 +29,8 @@ def _get_game(config):
         return PandaGameSubgoal(scenario, max_cores=max_cores)
     elif 'disks' in scenario:
         from disks_subgoal_game import DisksSubgoalGame
-        return DisksSubgoalGame()
+        shaping_coef = float(scenario.split('_')[1])
+        return DisksSubgoalGame(shaping_coeff=shaping_coef)
     else:
         assert False
 

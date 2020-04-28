@@ -14,11 +14,14 @@ general:
 #  scenario: panda_easy_fixed_start
 #  scenario: panda_hard
 #  scenario: panda_poles
-  scenario: disks
+#  scenario: disks_0.
+#  scenario: disks_0.1
+  scenario: disks_1.
   gpu_usage: 0.2
   training_cycles_per_level: 30000
 #  train_episodes_per_cycle: 30
-  train_episodes_per_cycle: 120
+#  train_episodes_per_cycle: 120
+  train_episodes_per_cycle: 300
   save_every_cycles: 1000000
   cycles_per_trajectory_print: 1000000
   test_frequency: 3

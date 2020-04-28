@@ -10,7 +10,8 @@ from disks_manager import DisksManager
 
 
 class DisksSubgoalGame(AbstractMotionPlanningGameSubgoal):
-    def __init__(self, max_cores=None):
+    def __init__(self, max_cores=None, shaping_coeff=0.):
+        self.shaping_coeff = shaping_coeff
         self.disks_manager = DisksManager()
         self.pos_size = 2
         self.number_of_disks = 2
@@ -108,7 +109,7 @@ class DisksSubgoalGame(AbstractMotionPlanningGameSubgoal):
         result = {}
         for _ in range(requests_count):
             path_id, i, start, end, free_cost, collision_cost, minimal_distance = self.results_queue.get()
-            minimal_distance_cost = 0.1 / (1. + minimal_distance)
+            minimal_distance_cost = self.shaping_coeff / (1. + minimal_distance)
             free_cost = free_cost + minimal_distance_cost
             if path_id not in result:
                 result[path_id] = {}
